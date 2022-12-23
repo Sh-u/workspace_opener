@@ -19,7 +19,7 @@ const PATH: &str =
 
 const CONFIG: &'static str = "config.txt";
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 enum State {
     Start,
     ChoosePreset,
@@ -27,49 +27,69 @@ enum State {
     End,
 }
 struct StatefulList {
-    state: ListState,
+    list_state: ListState,
     items: Vec<(String, State)>,
 }
 
 impl StatefulList<> {
     fn with_items(items: Vec<(String, State)>) -> Self {
-        StatefulList { state: ListState::default(), items }
+        StatefulList { list_state: ListState::default(), items }
     }
 
     fn next(&mut self) {
-        let i = match self.state.selected() {
+        let i = match self.list_state.selected() {
             Some(i) => {
-                if i >= self.items.len() - 1 { 0 } else { i + 1 }
+                if i >= self.items.len() - 1 { self.items.len() - 1 } else { i + 1 }
             }
             None => 0,
         };
 
-        self.state.select(Some(i))
+        self.list_state.select(Some(i))
     }
 
     fn previous(&mut self) {
-        let i = match self.state.selected() {
+        let i = match self.list_state.selected() {
             Some(i) => {
                 if i == 0 { 0 } else { i - 1 }
             }
             None => 0,
         };
 
-        self.state.select(Some(i))
+        self.list_state.select(Some(i))
     }
 
-    fn choose(&mut self, current_state: State) {
-        match self.state.selected() {
+    fn get_selected_item(&mut self) -> Option<(String, State)> {
+        match self.list_state.selected() {
             Some(i) => {
-                let slc = self.items.get(i).unwrap();
-
-                if let Some(created_items) = slc.1.create_items() {
-                    self.items = created_items;
+                match self.items.get(i) {
+                    Some(i) => Some(i.to_owned()),
+                    None => None,
                 }
             }
-            None => (),
+            None => None,
         }
     }
+
+    // fn choose(&mut self) -> Option<State> {
+    // match self.list_state.selected() {
+    //     Some(i) => {
+    //         let selected_items = match self.items.get(i) {
+    //             Some(i) => i.to_owned(),
+    //             None => {
+    //                 return None;
+    //             }
+    //         };
+
+    //         if let Some(created_items) = selected_items.1.create_items() {
+    //             self.items = created_items;
+    //             Some(selected_items.1.clone())
+    //         } else {
+    //             None
+    //         }
+    //     }
+    //     None => None,
+    // }
+    // }
 }
 
 enum StartChoices {
@@ -87,6 +107,7 @@ impl StartChoices {
 }
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+    dbg!("ui");
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(80), Constraint::Percentage(10)].as_ref())
@@ -98,7 +119,9 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .iter()
                 .map(|item| {
                     let mut lines = vec![Spans::from(item.0.as_str())];
-                    ListItem::new(lines).style(Style::default().fg(Color::LightBlue))
+                    ListItem::new(lines).style(
+                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    )
                 })
                 .collect::<Vec<ListItem>>()
         }
@@ -108,10 +131,10 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let main_block = Block::default().title("Main").borders(Borders::ALL);
     let items = List::new(items)
         .block(main_block)
-        .highlight_style(Style::default().bg(Color::LightYellow))
+        .highlight_style(Style::default().bg(Color::DarkGray))
         .highlight_symbol("> ");
 
-    f.render_stateful_widget(items, chunks[0], &mut app.items.state);
+    f.render_stateful_widget(items, chunks[0], &mut app.items.list_state);
 
     let input_block = Block::default().title("Input").borders(Borders::ALL);
     f.render_widget(input_block, chunks[1]);
@@ -137,7 +160,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                 KeyCode::Down => app.items.next(),
                 KeyCode::Up => app.items.previous(),
                 KeyCode::Enter => {
-                    app.items.choose(current_state);
+                    let selected_item = app.items.get_selected_item();
+                    if let Some(i) = selected_item {
+                        app.handle_state_change(i);
+                    }
                 }
                 _ => {}
             }
@@ -167,6 +193,8 @@ impl State {
                         ("Create Preset.".to_string(), State::CreatePreset)
                     ]
                 ),
+            State::CreatePreset =>
+                Some(vec![("Enter Your New Preset Name.".to_string(), State::CreatePreset)]),
             _ => None,
         }
     }
@@ -181,6 +209,23 @@ impl App {
             input_mode: InputMode::Normal,
             messages: Vec::new(),
         }
+    }
+    fn get_state(&self) -> State {
+        self.state.clone()
+    }
+
+    fn handle_state_change(&mut self, selected_item: (String, State)) {
+        dbg!("state change");
+        self.state = selected_item.1;
+        self.items.items.clear();
+
+        let new_items = self.state.create_items().unwrap();
+
+        for item in new_items {
+            self.items.items.push(item);
+        }
+
+        println!("items: {:?}", self.items.items);
     }
 }
 
