@@ -1,19 +1,25 @@
 use crossterm::{
-    event::{ self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent },
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent},
     execute,
-    terminal::{ disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen },
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use std::{ error::Error, fs::read_to_string, io };
+use log::*;
+use simplelog::{Config, WriteLogger};
+use std::{
+    error::Error,
+    fs::{read_to_string, File},
+    io,
+    time::{Duration, Instant},
+};
 use tui::{
-    backend::{ Backend, CrosstermBackend },
-    layout::{ Constraint, Direction, Layout },
-    style::{ Style, Modifier, Color },
-    text::{ Span, Spans, Text },
-    widgets::{ Block, Borders, Paragraph, List, ListItem, ListState },
-    Frame,
-    Terminal,
+    backend::{Backend, CrosstermBackend},
+    layout::{Alignment, Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    symbols::line::BOTTOM_LEFT,
+    text::{Span, Spans, Text},
+    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    Frame, Terminal,
 };
-
 const PATH: &str =
     "C:/Program Files/WindowsApps/Microsoft.WindowsTerminal_1.15.2874.0_x64__8wekyb3d8bbwe/wt.exe";
 
@@ -24,22 +30,36 @@ enum State {
     Start,
     ChoosePreset,
     CreatePreset,
-    End,
 }
 struct StatefulList {
     list_state: ListState,
     items: Vec<(String, State)>,
 }
 
-impl StatefulList<> {
+impl StatefulList {
     fn with_items(items: Vec<(String, State)>) -> Self {
-        StatefulList { list_state: ListState::default(), items }
+        let index = match items.len() {
+            0 => None,
+            _ => Some(0),
+        };
+
+        let mut list = StatefulList {
+            list_state: ListState::default(),
+            items,
+        };
+
+        list.list_state.select(index);
+        list
     }
 
     fn next(&mut self) {
         let i = match self.list_state.selected() {
             Some(i) => {
-                if i >= self.items.len() - 1 { self.items.len() - 1 } else { i + 1 }
+                if i >= self.items.len() - 1 {
+                    self.items.len() - 1
+                } else {
+                    i + 1
+                }
             }
             None => 0,
         };
@@ -50,7 +70,11 @@ impl StatefulList<> {
     fn previous(&mut self) {
         let i = match self.list_state.selected() {
             Some(i) => {
-                if i == 0 { 0 } else { i - 1 }
+                if i == 0 {
+                    0
+                } else {
+                    i - 1
+                }
             }
             None => 0,
         };
@@ -60,12 +84,10 @@ impl StatefulList<> {
 
     fn get_selected_item(&mut self) -> Option<(String, State)> {
         match self.list_state.selected() {
-            Some(i) => {
-                match self.items.get(i) {
-                    Some(i) => Some(i.to_owned()),
-                    None => None,
-                }
-            }
+            Some(i) => match self.items.get(i) {
+                Some(i) => Some(i.to_owned()),
+                None => None,
+            },
             None => None,
         }
     }
@@ -107,37 +129,64 @@ impl StartChoices {
 }
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
-    dbg!("ui");
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(80), Constraint::Percentage(10)].as_ref())
         .split(f.size());
 
-    let items = match app.state {
-        State::Start => {
-            app.items.items
-                .iter()
-                .map(|item| {
-                    let mut lines = vec![Spans::from(item.0.as_str())];
-                    ListItem::new(lines).style(
-                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
-                    )
-                })
-                .collect::<Vec<ListItem>>()
-        }
-        _ => vec![ListItem::new(Spans::default())],
-    };
-
     let main_block = Block::default().title("Main").borders(Borders::ALL);
-    let items = List::new(items)
-        .block(main_block)
-        .highlight_style(Style::default().bg(Color::DarkGray))
-        .highlight_symbol("> ");
-
-    f.render_stateful_widget(items, chunks[0], &mut app.items.list_state);
 
     let input_block = Block::default().title("Input").borders(Borders::ALL);
-    f.render_widget(input_block, chunks[1]);
+
+    if app.items.items.is_empty() {
+        let mut prompts = app
+            .prompts
+            .iter()
+            .map(|prompt| ListItem::new(Span::from(prompt.as_str())))
+            .collect::<Vec<ListItem>>();
+
+        for msg in app.messages.iter() {
+            prompts.push(
+                ListItem::new(Span::from(msg.as_str())).style(
+                    Style::default()
+                        .fg(Color::LightRed)
+                        .add_modifier(Modifier::ITALIC),
+                ),
+            )
+        }
+
+        let prompts = List::new(prompts).block(main_block.clone());
+
+        let input_block = input_block.style(Style::default().fg(Color::LightRed));
+
+        let user_input = Paragraph::new(Text::from(app.input.as_str()));
+
+        f.render_widget(prompts, chunks[0]);
+        f.render_widget(user_input.block(input_block), chunks[1]);
+        f.set_cursor(chunks[1].x + app.input.len() as u16 + 1, chunks[1].y + 1);
+    } else {
+        let items = app
+            .items
+            .items
+            .iter()
+            .map(|item| {
+                let _lines = vec![Spans::from(item.0.as_str())];
+                ListItem::new(_lines).style(
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::BOLD),
+                )
+            })
+            .collect::<Vec<ListItem>>();
+
+        let items = List::new(items)
+            .block(main_block)
+            .highlight_style(Style::default().bg(Color::DarkGray))
+            .highlight_symbol("> ");
+
+        f.render_stateful_widget(items, chunks[0], &mut app.items.list_state);
+        f.render_widget(input_block, chunks[1]);
+    }
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
@@ -153,19 +202,43 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
         let event = event::read().unwrap();
 
         if let Event::Key(key) = event {
-            match key.code {
-                KeyCode::Char('q') => {
-                    break;
-                }
-                KeyCode::Down => app.items.next(),
-                KeyCode::Up => app.items.previous(),
-                KeyCode::Enter => {
-                    let selected_item = app.items.get_selected_item();
-                    if let Some(i) = selected_item {
-                        app.handle_state_change(i);
+            match app.input_mode {
+                InputMode::Editing => match key.code {
+                    KeyCode::Char(c) => {
+                        app.input.push(c);
                     }
-                }
-                _ => {}
+                    KeyCode::Backspace => {
+                        app.input.pop();
+                    }
+                    KeyCode::Enter => {
+                        app.messages.push(app.input.drain(..).collect());
+                    }
+
+                    KeyCode::Esc => {
+                        app.handle_state_change(State::Start);
+                    }
+
+                    _ => {}
+                },
+                InputMode::Normal => match key.code {
+                    KeyCode::Char('q') => {
+                        break;
+                    }
+                    KeyCode::Down => app.items.next(),
+                    KeyCode::Up => app.items.previous(),
+                    KeyCode::Enter => {
+                        let selected_item = app.items.get_selected_item();
+                        if let Some(i) = selected_item {
+                            app.handle_state_change(i.1);
+                        }
+                    }
+                    KeyCode::Esc => {
+                        if app.get_state() != State::Start {
+                            app.handle_state_change(State::Start);
+                        }
+                    }
+                    _ => {}
+                },
             }
         }
     }
@@ -178,6 +251,7 @@ enum InputMode {
 struct App {
     state: State,
     items: StatefulList,
+    prompts: Vec<String>,
     input: String,
     input_mode: InputMode,
     messages: Vec<String>,
@@ -186,15 +260,17 @@ struct App {
 impl State {
     fn create_items(&self) -> Option<Vec<(String, State)>> {
         match self {
-            State::Start =>
-                Some(
-                    vec![
-                        ("Choose Preset.".to_string(), State::ChoosePreset),
-                        ("Create Preset.".to_string(), State::CreatePreset)
-                    ]
-                ),
-            State::CreatePreset =>
-                Some(vec![("Enter Your New Preset Name.".to_string(), State::CreatePreset)]),
+            State::Start => Some(vec![
+                ("Choose Preset.".to_string(), State::ChoosePreset),
+                ("Create Preset.".to_string(), State::CreatePreset),
+            ]),
+            _ => None,
+        }
+    }
+
+    fn create_prompts(&self) -> Option<Vec<String>> {
+        match self {
+            State::CreatePreset => Some(vec!["Enter your new preset name.".to_string()]),
             _ => None,
         }
     }
@@ -205,6 +281,7 @@ impl App {
         App {
             state: State::Start,
             items: StatefulList::with_items(State::Start.create_items().unwrap()),
+            prompts: Vec::new(),
             input: String::new(),
             input_mode: InputMode::Normal,
             messages: Vec::new(),
@@ -214,22 +291,37 @@ impl App {
         self.state.clone()
     }
 
-    fn handle_state_change(&mut self, selected_item: (String, State)) {
-        dbg!("state change");
-        self.state = selected_item.1;
+    fn handle_state_change(&mut self, new_state: State) {
+        self.state = new_state;
         self.items.items.clear();
+        self.prompts.clear();
+        match new_state {
+            State::CreatePreset => {
+                let new_prompts = self.state.create_prompts().unwrap();
 
-        let new_items = self.state.create_items().unwrap();
+                for prompt in new_prompts {
+                    self.prompts.push(prompt);
+                }
+                self.input_mode = InputMode::Editing;
+            }
+            _ => {
+                self.input_mode = InputMode::Normal;
+                let new_items = self.state.create_items().unwrap();
 
-        for item in new_items {
-            self.items.items.push(item);
-        }
-
-        println!("items: {:?}", self.items.items);
+                for item in new_items {
+                    self.items.items.push(item);
+                }
+            }
+        };
     }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    let _ = WriteLogger::init(
+        LevelFilter::Info,
+        Config::default(),
+        File::create("output.txt").unwrap(),
+    );
     enable_raw_mode()?;
 
     let mut stdout = io::stdout();
