@@ -4,26 +4,30 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use log::*;
+
+use serde::{Deserialize, Serialize};
 use simplelog::{Config, WriteLogger};
+use std::fs::OpenOptions;
 use std::{
+    collections::VecDeque,
     error::Error,
-    fs::{read_to_string, File},
-    io,
+    fs::{self, read_to_string, File},
+    io::{self, BufWriter, Write},
     time::{Duration, Instant},
 };
 use tui::{
     backend::{Backend, CrosstermBackend},
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     symbols::line::BOTTOM_LEFT,
     text::{Span, Spans, Text},
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
     Frame, Terminal,
 };
 const PATH: &str =
     "C:/Program Files/WindowsApps/Microsoft.WindowsTerminal_1.15.2874.0_x64__8wekyb3d8bbwe/wt.exe";
 
-const CONFIG: &'static str = "config.txt";
+const CONFIG: &'static str = "config.json";
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum State {
@@ -31,9 +35,58 @@ enum State {
     ChoosePreset,
     CreatePreset,
 }
+struct Popup {
+    active: bool,
+    message: String,
+}
+
+impl Popup {
+    fn default() -> Self {
+        Popup {
+            active: false,
+            message: String::new(),
+        }
+    }
+
+    fn activate_popup(&mut self, message: &str) {
+        self.active = true;
+        self.message = message.to_string();
+    }
+
+    fn deactivate_popup(&mut self) {
+        self.active = false;
+    }
+}
+
 struct StatefulList {
     list_state: ListState,
     items: Vec<(String, State)>,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct AppConfig {
+    presets: Vec<Preset>,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct Preset {
+    name: String,
+    terminal_path: String,
+    windows: u8,
+    args: Vec<String>,
+}
+
+impl Preset {
+    fn new(input: &Vec<String>) -> Self {
+        Preset {
+            name: input.get(0).unwrap().to_string(),
+            terminal_path: input.get(1).unwrap().to_string(),
+            windows: input.get(2).unwrap().parse::<u8>().unwrap(),
+            args: input
+                .iter()
+                .skip(3)
+                .map(|arg| arg.to_string())
+                .collect::<Vec<String>>(),
+        }
+    }
 }
 
 impl StatefulList {
@@ -91,44 +144,36 @@ impl StatefulList {
             None => None,
         }
     }
-
-    // fn choose(&mut self) -> Option<State> {
-    // match self.list_state.selected() {
-    //     Some(i) => {
-    //         let selected_items = match self.items.get(i) {
-    //             Some(i) => i.to_owned(),
-    //             None => {
-    //                 return None;
-    //             }
-    //         };
-
-    //         if let Some(created_items) = selected_items.1.create_items() {
-    //             self.items = created_items;
-    //             Some(selected_items.1.clone())
-    //         } else {
-    //             None
-    //         }
-    //     }
-    //     None => None,
-    // }
-    // }
 }
 
-enum StartChoices {
-    ChoosePreset,
-    CreateNewPreset,
-}
+fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_y) / 2),
+                Constraint::Percentage(percent_y),
+                Constraint::Percentage((100 - percent_y) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(rect);
 
-impl StartChoices {
-    fn as_string(&self) -> String {
-        match self {
-            StartChoices::ChoosePreset => String::from("Choose preset."),
-            StartChoices::CreateNewPreset => String::from("Create new preset."),
-        }
-    }
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_x) / 2),
+                Constraint::Percentage(percent_x),
+                Constraint::Percentage((100 - percent_x) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(layout[1])[1]
 }
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+    let size = f.size();
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(80), Constraint::Percentage(10)].as_ref())
@@ -138,21 +183,27 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
     let input_block = Block::default().title("Input").borders(Borders::ALL);
 
-    if app.items.items.is_empty() {
-        let mut prompts = app
-            .prompts
-            .iter()
-            .map(|prompt| ListItem::new(Span::from(prompt.as_str())))
-            .collect::<Vec<ListItem>>();
+    if app.popup.active {
+        let popup_block = Block::default().title("Popup").borders(Borders::ALL);
+        let area = centered_rect(60, 20, size);
+        let popup_message = Paragraph::new(Span::from(app.popup.message.to_string()));
+        f.render_widget(popup_message.block(popup_block), area);
+    }
 
-        for msg in app.messages.iter() {
-            prompts.push(
-                ListItem::new(Span::from(msg.as_str())).style(
-                    Style::default()
-                        .fg(Color::LightRed)
-                        .add_modifier(Modifier::ITALIC),
-                ),
-            )
+    if app.items.items.is_empty() {
+        let mut prompts: Vec<ListItem> = Vec::new();
+
+        for (index, prompt) in app.prompts.iter().take(app.messages.len() + 1).enumerate() {
+            prompts.push(ListItem::new(Span::from(prompt.as_str())));
+            if let Some(msg) = app.messages.get(index) {
+                prompts.push(
+                    ListItem::new(Span::from(msg.as_str())).style(
+                        Style::default()
+                            .fg(Color::LightRed)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
+                )
+            }
         }
 
         let prompts = List::new(prompts).block(main_block.clone());
@@ -190,11 +241,8 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 }
 
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
-    let presets = read_to_string(CONFIG)
-        .expect("Error reading presets config.")
-        .lines()
-        .map(|line| line.trim().to_string())
-        .collect::<Vec<String>>();
+    let cfg_file_string = fs::read_to_string(CONFIG).unwrap();
+    let mut app_config: AppConfig = serde_json::from_str(&cfg_file_string).unwrap();
 
     loop {
         terminal.draw(|f| ui(f, app)).unwrap();
@@ -211,10 +259,65 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         app.input.pop();
                     }
                     KeyCode::Enter => {
+                        if app.input.is_empty() {
+                            continue;
+                        }
+
+                        let _prompts_len = app.prompts.len();
+                        let msg_length = app.messages.len();
+                        info!("msg {}", msg_length);
+                        match msg_length {
+                            x if x == _prompts_len && x != 2 && x != 3 => {
+                                continue;
+                            }
+                            2 => {
+                                let windows_number = app.input.as_str().trim().parse::<u8>();
+
+                                if let Ok(num) = windows_number {
+                                    for n in 1..=num {
+                                        app.prompts.push(format!(
+                                            "Enter args for window number {} (split by spaces): ",
+                                            n
+                                        ));
+                                    }
+                                } else {
+                                    continue;
+                                }
+                            }
+                            _ => {}
+                        }
+
                         app.messages.push(app.input.drain(..).collect());
+
+                        if app.messages.len() == app.prompts.len() {
+                            let new_preset = Preset::new(&app.messages);
+                            app_config.presets.push(new_preset);
+
+                            app.messages.clear();
+                            app.prompts.clear();
+
+                            let config_file = File::create(CONFIG);
+
+                            if config_file.is_err() {
+                                error!("Error while reading the config file.");
+                                panic!();
+                            }
+
+                            let mut writer = BufWriter::new(config_file.unwrap());
+                            serde_json::to_writer(&mut writer, &app_config).unwrap();
+                            writer.flush().unwrap();
+
+                            app.popup.activate_popup(
+                                "Preset created successfuly :) Press ESC to close popup.",
+                            );
+                            app.handle_state_change(State::Start);
+                        }
                     }
 
                     KeyCode::Esc => {
+                        if app.popup.active {
+                            app.popup.deactivate_popup()
+                        }
                         app.handle_state_change(State::Start);
                     }
 
@@ -233,6 +336,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         }
                     }
                     KeyCode::Esc => {
+                        if app.popup.active {
+                            app.popup.deactivate_popup()
+                        }
                         if app.get_state() != State::Start {
                             app.handle_state_change(State::Start);
                         }
@@ -243,7 +349,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
         }
     }
 }
-
+#[derive(Debug)]
 enum InputMode {
     Normal,
     Editing,
@@ -255,6 +361,7 @@ struct App {
     input: String,
     input_mode: InputMode,
     messages: Vec<String>,
+    popup: Popup,
 }
 
 impl State {
@@ -270,7 +377,11 @@ impl State {
 
     fn create_prompts(&self) -> Option<Vec<String>> {
         match self {
-            State::CreatePreset => Some(vec!["Enter your new preset name.".to_string()]),
+            State::CreatePreset => Some(vec![
+                "Enter your new preset name:".to_string(),
+                "Enter a valid path to your terminal:".to_string(),
+                "Enter windows amount (number only): ".to_string(),
+            ]),
             _ => None,
         }
     }
@@ -285,6 +396,7 @@ impl App {
             input: String::new(),
             input_mode: InputMode::Normal,
             messages: Vec::new(),
+            popup: Popup::default(),
         }
     }
     fn get_state(&self) -> State {
@@ -320,7 +432,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let _ = WriteLogger::init(
         LevelFilter::Info,
         Config::default(),
-        File::create("output.txt").unwrap(),
+        File::create("output.log").unwrap(),
     );
     enable_raw_mode()?;
 
@@ -342,86 +454,3 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     Ok(())
 }
-
-// loop {
-//     execute!(stdout(), terminal::Clear(ClearType::All)).unwrap();
-
-// }
-
-// Clean up the terminal.
-// execute!(
-//     stdout(),
-//     cursor::Show,
-//     terminal::LeaveAlternateScreen,
-//     terminal::Clear(ClearType::All)
-// ).unwrap();
-
-// panic!();
-
-// let mut path = String::new();
-// let mut input = String::new();
-
-// let mut state = State::Start;
-
-// println!("{}", std::env::current_dir().unwrap().display());
-// let contents = read_to_string(CONFIG).expect("Error reading file");
-
-// println!("{}", contents.is_empty());
-// let lines_num = contents.lines().count();
-
-// println!("Do you want to use an existing preset? Y/N");
-
-// loop {
-//     match stdin().read_line(&mut input) {
-//         Ok(_) => {
-//             println!("input: {}. state: {:?}", input, &state);
-
-//             match state {
-//                 State::Start => {
-//                     match input.to_lowercase().trim() {
-//                         "y" if contents.is_empty() => {
-//                             println!(
-//                                 "There are no presets created yet. Please enter a valid path of your startup program to create one."
-//                             );
-//                             state = State::CreatePreset;
-//                             input.clear();
-//                             continue;
-//                         }
-//                         "y" => {
-//                             println!("Choose your preset by typing the number next to it.");
-//                             println!("File contents: \n{}", contents);
-
-//                             state = State::ChoosePreset;
-//                             continue;
-//                         }
-//                         "n" => {
-//                             println!("Please enter a valid path of your startup program.");
-//                             state = State::CreatePreset;
-//                             continue;
-//                         }
-//                         _ => {
-//                             println!("You can only type y/n.");
-//                             break;
-//                         }
-//                     }
-//                 }
-//                 State::ChoosePreset => {}
-//                 State::CreatePreset => {
-//                     println!("Path addded.");
-//                     path = input.trim().to_string();
-//                     break;
-//                 }
-//             }
-//         }
-//         Err(err) => println!("An error occured: {}", err),
-//     }
-// }
-// path.push_str("\n");
-// match write(CONFIG, &path) {
-//     Ok(_) => (),
-//     Err(error) => {
-//         panic!("Couldn't write to file: {}", error);
-//     }
-// }
-
-// let command = Command::new(&path.trim()).spawn().expect("failed to execute process");
