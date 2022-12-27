@@ -1,41 +1,48 @@
+use serde::{Deserialize, Serialize};
+use tui::{style::Color, widgets::ListState};
+
 #[derive(Debug, Copy, Clone, PartialEq)]
-enum State {
+pub enum State {
     Start,
     ChoosePreset,
     CreatePreset,
+    EditPreset,
+    ChangePresetField,
     RunConfig,
 }
-struct Popup {
-    active: bool,
-    message: String,
+pub struct Popup {
+    pub(super) active: bool,
+    pub(super) message: String,
+    pub(super) color: Color,
 }
 
-struct StatefulList {
-    list_state: ListState,
-    items: Vec<(String, State)>,
+pub struct StatefulList {
+    pub(super) list_state: ListState,
+    pub(super) items: Vec<(String, State)>,
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct AppConfig {
-    presets: Vec<Preset>,
+pub struct AppConfig {
+    pub(super) presets: Vec<Preset>,
 }
-#[derive(Serialize, Deserialize, Debug)]
-struct Preset {
-    name: String,
-    terminal_path: String,
-    windows: u8,
-    args: Vec<String>,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Preset {
+    pub(super) name: String,
+    pub(super) terminal_path: String,
+    pub(super) windows: u8,
+    pub(super) args: Vec<String>,
 }
 #[derive(Debug)]
-enum InputMode {
+pub enum InputMode {
     Normal,
-    Editing,
+    Input,
+    Edit,
 }
-struct App {
-    state: State,
-    items: StatefulList,
-    prompts: Vec<String>,
-    input: String,
-    input_mode: InputMode,
-    messages: Vec<String>,
-    popup: Popup,
+pub struct App {
+    pub(super) state: State,
+    pub(super) items: StatefulList,
+    pub(super) prompts: Vec<String>,
+    pub(super) input: String,
+    pub(super) input_mode: InputMode,
+    pub(super) messages: Vec<String>,
+    pub(super) popup: Popup,
 }
