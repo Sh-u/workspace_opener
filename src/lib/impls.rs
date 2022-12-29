@@ -1,4 +1,6 @@
-use super::model::{App, InputMode, Popup, Preset, State, StatefulList};
+use std::{collections::binary_heap::Iter, error::Error, io::ErrorKind, string::ParseError};
+
+use super::model::{App, AppConfig, InputMode, Popup, Preset, State, StatefulList};
 use tui::{style::Color, widgets::ListState};
 
 impl State {
@@ -80,15 +82,24 @@ impl StatefulList {
         }
     }
 
-    pub fn change_selected_item_name(&mut self, new_item: &str) {
+    pub fn get_selected_item_index(&self) -> Option<usize> {
+        match self.list_state.selected() {
+            Some(i) => Some(i),
+            None => None,
+        }
+    }
+
+    pub fn change_selected_item_name(&mut self, new_item: &str) -> Option<(String, String)> {
         match self.list_state.selected() {
             Some(index) => match self.items.get_mut(index) {
                 Some(i) => {
+                    let old_name = i.0.to_string();
                     i.0 = Preset::get_prefix(index) + new_item;
+                    Some((old_name, i.0.to_string()))
                 }
-                None => (),
+                None => None,
             },
-            None => (),
+            None => None,
         }
     }
 }
@@ -107,13 +118,6 @@ impl Preset {
         }
     }
 
-    pub fn find_by_name(presets: &Vec<Preset>, name: &str) -> Option<Preset> {
-        if let Some(pr) = presets.iter().find(|&preset| preset.name == name) {
-            return Some(pr.clone());
-        } else {
-            return None;
-        }
-    }
     pub fn get_prefix(index: usize) -> String {
         match index {
             0 => "Name: ".to_string(),
@@ -121,6 +125,35 @@ impl Preset {
             2 => "Windows amount: ".to_string(),
             _ => format!("Arg {}: ", index + 1),
         }
+    }
+
+    pub fn change_name(&mut self, index: usize, new_name: &str) -> Result<(), String> {
+        match index {
+            0 => {
+                self.name = new_name.to_string();
+            }
+            1 => {
+                self.terminal_path = new_name.to_string();
+            }
+            2 => {
+                if let Ok(v) = new_name.parse::<u8>() {
+                    self.windows = v;
+                } else {
+                    return Err(String::from("windows has to be a number."));
+                }
+            }
+            _ => {
+                for n in 1..=self.args.len() {
+                    if let Some(arg) = self.args.get_mut(n) {
+                        *arg = format!("Arg {}: ", n + 1);
+                    } else {
+                        return Err(String::from("Error changing args name."));
+                    }
+                }
+            }
+        }
+
+        Ok(())
     }
     pub fn into_items(&self) -> Vec<String> {
         let mut items = vec![];
@@ -164,6 +197,7 @@ impl App {
             input_mode: InputMode::Normal,
             messages: Vec::new(),
             popup: Popup::default(),
+            current_preset: None,
         }
     }
     pub fn get_state(&self) -> State {
@@ -213,7 +247,9 @@ impl App {
                 self.items.items.clear();
                 match possible_presets {
                     Some(presets) if presets.len() > 0 => {
-                        let new_items = presets.get(0).unwrap().into_items();
+                        self.current_preset = Some(presets.first().unwrap().clone());
+
+                        let new_items = self.current_preset.clone().unwrap().into_items();
 
                         for item in new_items {
                             self.items.items.push((item, State::ChangePresetField));
@@ -240,5 +276,15 @@ impl App {
                 }
             }
         };
+    }
+}
+
+impl AppConfig {
+    pub fn find_preset_by_name(&mut self, name: &str) -> Option<&mut Preset> {
+        if let Some(found) = self.presets.iter_mut().find(|preset| preset.name == name) {
+            Some(found)
+        } else {
+            None
+        }
     }
 }

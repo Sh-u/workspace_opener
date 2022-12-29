@@ -45,4 +45,5 @@ pub struct App {
     pub(super) input_mode: InputMode,
     pub(super) messages: Vec<String>,
     pub(super) popup: Popup,
+    pub(super) current_preset: Option<Preset>,
 }

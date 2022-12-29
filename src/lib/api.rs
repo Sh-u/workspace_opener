@@ -1,8 +1,9 @@
 use super::model::{App, AppConfig, InputMode, Preset, State};
 use crossterm::event::{self, Event, KeyCode};
 use log::*;
+use std::iter;
 use std::{
-    fs::{self, File},
+    fs::{self, read_to_string, File},
     io::{BufWriter, Write},
 };
 use tui::{
@@ -13,7 +14,6 @@ use tui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame, Terminal,
 };
-
 const CONFIG: &'static str = "config.json";
 
 fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
@@ -213,12 +213,14 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         let selected_item = app.items.get_selected_item();
                         match selected_item {
                             Some(item) if item.1 == State::RunConfig => {
-                                let i = Preset::find_by_name(&app_config.presets, item.0.as_str());
+                                let presets = app_config.find_preset_by_name(&item.0);
 
-                                if let Some(preset) = i {
-                                    let i = vec![preset];
-
-                                    app.handle_state_change(("", State::EditPreset), Some(&i));
+                                if let Some(presets) = presets {
+                                    let presets = vec![presets.to_owned()];
+                                    app.handle_state_change(
+                                        ("", State::EditPreset),
+                                        Some(&presets),
+                                    );
                                 }
                             }
                             _ => {
@@ -247,8 +249,18 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                 },
                 InputMode::Edit => match key.code {
                     KeyCode::Enter => {
-                        app.items.change_selected_item_name(&app.input);
-                        app.input_mode = InputMode::Normal;
+                        if let Some(pr) = &app.current_preset {
+                            if let Some(pr) = app_config.find_preset_by_name(&pr.name) {
+                                let index = app.items.get_selected_item_index().unwrap();
+
+                                pr.change_name(index, &app.input)
+                                    .expect("Failed to change the name.");
+                            }
+                        }
+
+                        app.handle_state_change(("", State::EditPreset), Some(&app_config.presets));
+
+                        // todo!("write config");
                     }
                     KeyCode::Char(c) => {
                         app.input.push(c);
