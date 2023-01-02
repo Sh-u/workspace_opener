@@ -44,12 +44,36 @@ fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let size = f.size();
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(80), Constraint::Percentage(10)].as_ref())
+        .constraints(
+            [
+                Constraint::Length(1),
+                Constraint::Min(1),
+                Constraint::Length(3),
+            ]
+            .as_ref(),
+        )
         .split(f.size());
 
+    let edit_color = Color::Rgb(51, 153, 255);
+
+    let mut controls = vec![
+        Span::raw("Press "),
+        Span::styled("ESC", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" to go back, "),
+        Span::styled("q", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" to exit."),
+    ];
+
     let main_block = Block::default().borders(Borders::ALL);
+    let mut main_block_style = Style::default().bg(Color::Black);
+    let highlight_style = Style::default().bg(edit_color);
+
+    if let State::EditPreset | State::ChangePresetField = app.state {
+        main_block_style = main_block_style.fg(edit_color);
+    }
 
     let input_block = Block::default().title("Input").borders(Borders::ALL);
 
@@ -71,7 +95,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                     prompts.push(
                         ListItem::new(Span::from(msg.as_str())).style(
                             Style::default()
-                                .fg(Color::LightYellow)
+                                .fg(edit_color)
                                 .add_modifier(Modifier::ITALIC),
                         ),
                     )
@@ -80,13 +104,13 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
 
             let prompts = List::new(prompts).block(main_block.clone());
 
-            let input_block = input_block.style(Style::default().fg(Color::LightYellow));
+            let input_block = input_block.style(Style::default().fg(edit_color));
 
             let user_input = Paragraph::new(Text::from(app.input.as_str()));
 
-            f.render_widget(prompts, chunks[0]);
-            f.render_widget(user_input.block(input_block), chunks[1]);
-            f.set_cursor(chunks[1].x + app.input.len() as u16 + 1, chunks[1].y + 1);
+            f.render_widget(prompts, chunks[1]);
+            f.render_widget(user_input.block(input_block), chunks[2]);
+            f.set_cursor(chunks[2].x + app.input.len() as u16 + 1, chunks[2].y + 1);
         }
         _ => {
             let items = app
@@ -103,23 +127,27 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 })
                 .collect::<Vec<ListItem>>();
 
-            let items = List::new(items)
-                .block(main_block)
-                .highlight_style(Style::default().bg(Color::DarkGray))
-                .highlight_symbol("> ");
-
-            f.render_stateful_widget(items, chunks[0], &mut app.items.list_state);
-
             if let InputMode::Edit = app.input_mode {
-                let input_block = input_block.style(Style::default().fg(Color::LightYellow));
+                let input_block = input_block.style(Style::default().fg(edit_color));
 
                 let user_input = Paragraph::new(Text::from(app.input.as_str()));
 
-                f.render_widget(user_input.block(input_block), chunks[1]);
-                f.set_cursor(chunks[1].x + app.input.len() as u16 + 1, chunks[1].y + 1);
+                f.render_widget(user_input.block(input_block), chunks[2]);
+                f.set_cursor(chunks[2].x + app.input.len() as u16 + 1, chunks[2].y + 1);
             } else {
-                f.render_widget(input_block, chunks[1]);
+                f.render_widget(input_block, chunks[2]);
             }
+
+            let items = List::new(items)
+                .block(main_block)
+                .style(main_block_style)
+                .highlight_style(highlight_style)
+                .highlight_symbol("> ");
+
+            let controls = Paragraph::new(Text::from(Spans::from(controls)));
+
+            f.render_widget(controls, chunks[0]);
+            f.render_stateful_widget(items, chunks[1], &mut app.items.list_state);
         }
     }
 }
@@ -253,14 +281,13 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                             if let Some(pr) = app_config.find_preset_by_name(&pr.name) {
                                 let index = app.items.get_selected_item_index().unwrap();
 
-                                pr.change_name(index, &app.input)
-                                    .expect("Failed to change the name.");
+                                if pr.change_name(index, &app.input).is_err() {
+                                    continue;
+                                }
                             }
                         }
 
                         app.handle_state_change(("", State::EditPreset), Some(&app_config.presets));
-
-                        // todo!("write config");
                     }
                     KeyCode::Char(c) => {
                         app.input.push(c);

@@ -1,6 +1,7 @@
 use std::{collections::binary_heap::Iter, error::Error, io::ErrorKind, string::ParseError};
 
 use super::model::{App, AppConfig, InputMode, Popup, Preset, State, StatefulList};
+use log::warn;
 use tui::{style::Color, widgets::ListState};
 
 impl State {
@@ -123,7 +124,7 @@ impl Preset {
             0 => "Name: ".to_string(),
             1 => "Terminal path: ".to_string(),
             2 => "Windows amount: ".to_string(),
-            _ => format!("Arg {}: ", index + 1),
+            x => format!("Arg {}: ", x - 2),
         }
     }
 
@@ -139,7 +140,7 @@ impl Preset {
                 if let Ok(v) = new_name.parse::<u8>() {
                     self.windows = v;
                 } else {
-                    return Err(String::from("windows has to be a number."));
+                    return Err(String::from("Windows has to be a number."));
                 }
             }
             _ => {
@@ -161,7 +162,8 @@ impl Preset {
         items.push(Self::get_prefix(1) + self.terminal_path.as_str());
         items.push(Self::get_prefix(2) + &self.windows.to_string());
         for arg in self.args.iter().enumerate() {
-            items.push(Self::get_prefix(arg.0) + arg.1);
+            warn!("arg index: {}", &arg.0);
+            items.push(Self::get_prefix(arg.0 + 3) + arg.1);
         }
         items
     }
