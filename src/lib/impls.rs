@@ -138,6 +138,21 @@ impl Preset {
             }
             2 => {
                 if let Ok(v) = new_name.parse::<u8>() {
+                    if v == 0 {
+                        return Err(String::from("Windows cannot have a value of 0."));
+                    }
+                    let old_windows = self.windows;
+
+                    if v < self.windows {
+                        for _n in 0..old_windows - v {
+                            self.args.pop();
+                        }
+                    } else {
+                        for _n in 0..v - old_windows {
+                            self.args.push(format!(""))
+                        }
+                    }
+
                     self.windows = v;
                 } else {
                     return Err(String::from("Windows has to be a number."));
