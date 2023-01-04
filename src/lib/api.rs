@@ -76,13 +76,18 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     match app.state {
         State::EditPreset | State::ChangePresetField => {
             main_block_style = main_block_style.fg(edit_color);
+            controls.push(Span::raw(", "));
+            controls.push(Span::styled(
+                "EDIT MODE ACTIVATED",
+                Style::default().add_modifier(Modifier::BOLD).fg(edit_color),
+            ));
         }
         State::ChoosePreset => {
             controls.push(Span::styled(
                 ", E",
                 Style::default().add_modifier(Modifier::BOLD),
             ));
-            controls.push(Span::raw(" to edit preset."));
+            controls.push(Span::raw(" to edit preset"));
         }
         _ => {}
     }
@@ -150,6 +155,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .highlight_style(highlight_style)
                 .highlight_symbol("> ");
 
+            controls.push(Span::raw("."));
             let controls = Paragraph::new(Text::from(Spans::from(controls)));
 
             f.render_widget(controls, chunks[0]);
@@ -304,8 +310,8 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                             if let Some(pr) = app_config.find_preset_by_name(&pr.name) {
                                 let index = app.items.get_selected_item_index().unwrap();
 
-                                if pr.change_name(index, &app.input).is_err() {
-                                    error!("Eerror when trying to change field name.");
+                                if let Err(err) = pr.change_name(index, &app.input) {
+                                    error!("{}", err);
                                     continue;
                                 }
 

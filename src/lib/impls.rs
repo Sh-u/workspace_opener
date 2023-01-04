@@ -1,4 +1,5 @@
 use super::model::{App, AppConfig, InputMode, Popup, Preset, State, StatefulList};
+use log::info;
 use tui::{style::Color, widgets::ListState};
 
 impl State {
@@ -156,12 +157,10 @@ impl Preset {
                 }
             }
             _ => {
-                for n in 1..=self.args.len() {
-                    if let Some(arg) = self.args.get_mut(n) {
-                        *arg = format!("Arg {}: ", n + 1);
-                    } else {
-                        return Err(String::from("Error changing args name."));
-                    }
+                if let Some(arg) = self.args.get_mut(index - 3) {
+                    *arg = format!("{}", new_name);
+                } else {
+                    return Err(String::from("Error changing args name."));
                 }
             }
         }
