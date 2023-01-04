@@ -1,7 +1,4 @@
-use std::{collections::binary_heap::Iter, error::Error, io::ErrorKind, string::ParseError};
-
 use super::model::{App, AppConfig, InputMode, Popup, Preset, State, StatefulList};
-use log::warn;
 use tui::{style::Color, widgets::ListState};
 
 impl State {
@@ -177,7 +174,6 @@ impl Preset {
         items.push(Self::get_prefix(1) + self.terminal_path.as_str());
         items.push(Self::get_prefix(2) + &self.windows.to_string());
         for arg in self.args.iter().enumerate() {
-            warn!("arg index: {}", &arg.0);
             items.push(Self::get_prefix(arg.0 + 3) + arg.1);
         }
         items
@@ -224,13 +220,14 @@ impl App {
     pub fn handle_state_change(
         &mut self,
         (item_name, new_state): (&str, State),
-        possible_presets: Option<&Vec<Preset>>,
+        config_presets: Option<&Vec<Preset>>,
     ) {
         if new_state == self.state {
             return ();
         }
 
         self.state = new_state;
+        self.input.clear();
         self.messages.clear();
 
         match new_state {
@@ -245,7 +242,7 @@ impl App {
             }
             State::ChoosePreset => {
                 self.items.items.clear();
-                match possible_presets {
+                match config_presets {
                     Some(presets) if presets.len() > 0 => {
                         for preset in presets {
                             self.items
@@ -262,10 +259,8 @@ impl App {
             State::EditPreset => {
                 self.input_mode = InputMode::Normal;
                 self.items.items.clear();
-                match possible_presets {
+                match config_presets {
                     Some(presets) if presets.len() > 0 => {
-                        self.current_preset = Some(presets.first().unwrap().clone());
-
                         let new_items = self.current_preset.clone().unwrap().into_items();
 
                         for item in new_items {
@@ -284,7 +279,7 @@ impl App {
             _ => {
                 self.items.items.clear();
                 self.prompts.clear();
-
+                self.current_preset = None;
                 self.input_mode = InputMode::Normal;
                 let new_items = self.state.create_items().unwrap();
 

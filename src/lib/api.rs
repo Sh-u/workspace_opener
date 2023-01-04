@@ -1,4 +1,4 @@
-use super::model::{App, AppConfig, InputMode, Preset, State};
+use super::model::{App, AppConfig, InputMode, Preset, State, WriteType};
 use crossterm::event::{self, Event, KeyCode};
 use log::*;
 use std::iter;
@@ -62,23 +62,33 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let mut controls = vec![
         Span::raw("Press "),
         Span::styled("ESC", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(" to go back, "),
-        Span::styled("q", Style::default().add_modifier(Modifier::BOLD)),
-        Span::raw(" to exit."),
+        Span::raw(" to go back"),
+        Span::styled(", q", Style::default().add_modifier(Modifier::BOLD)),
+        Span::raw(" to exit"),
     ];
 
     let main_block = Block::default().borders(Borders::ALL);
     let mut main_block_style = Style::default().bg(Color::Black);
     let highlight_style = Style::default().bg(edit_color);
 
-    if let State::EditPreset | State::ChangePresetField = app.state {
-        main_block_style = main_block_style.fg(edit_color);
-    }
-
     let input_block = Block::default().title("Input").borders(Borders::ALL);
 
+    match app.state {
+        State::EditPreset | State::ChangePresetField => {
+            main_block_style = main_block_style.fg(edit_color);
+        }
+        State::ChoosePreset => {
+            controls.push(Span::styled(
+                ", E",
+                Style::default().add_modifier(Modifier::BOLD),
+            ));
+            controls.push(Span::raw(" to edit preset."));
+        }
+        _ => {}
+    }
+
     if app.popup.active {
-        let popup_block = Block::default().title("ESC").borders(Borders::ALL);
+        let popup_block = Block::default().borders(Borders::ALL);
         let area = centered_rect(60, 20, size);
         let popup_message = Paragraph::new(Span::from(app.popup.message.to_string()))
             .style(Style::default().fg(app.popup.color));
@@ -119,11 +129,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .iter()
                 .map(|item| {
                     let _lines = vec![Spans::from(item.0.as_str())];
-                    ListItem::new(_lines).style(
-                        Style::default()
-                            .fg(Color::White)
-                            .add_modifier(Modifier::BOLD),
-                    )
+                    ListItem::new(_lines).style(Style::default().fg(Color::White))
                 })
                 .collect::<Vec<ListItem>>();
 
@@ -152,6 +158,29 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     }
 }
 
+fn write_preset_to_file(
+    app_config: &mut AppConfig,
+    app_messages: &Vec<String>,
+    write_type: WriteType,
+) -> Result<(), ()> {
+    if let WriteType::Create = write_type {
+        let new_preset = Preset::new(app_messages);
+        app_config.presets.push(new_preset);
+    }
+
+    let config_file = File::create(CONFIG);
+
+    if config_file.is_err() {
+        error!("Error while reading the config file.");
+        panic!();
+    }
+
+    let mut writer = BufWriter::new(config_file.unwrap());
+    serde_json::to_writer(&mut writer, &app_config).unwrap();
+    writer.flush().unwrap();
+
+    Ok(())
+}
 pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
     let cfg_file_string = fs::read_to_string(CONFIG).unwrap();
     let mut app_config: AppConfig = serde_json::from_str(&cfg_file_string).unwrap();
@@ -202,24 +231,18 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         app.messages.push(app.input.drain(..).collect());
 
                         if app.messages.len() == app.prompts.len() {
-                            let new_preset = Preset::new(&app.messages);
-                            app_config.presets.push(new_preset);
+                            if write_preset_to_file(
+                                &mut app_config,
+                                &app.messages,
+                                WriteType::Create,
+                            )
+                            .is_ok()
+                            {
+                                app.popup
+                                    .activate_popup("Preset created successfuly :)", Color::Green);
 
-                            let config_file = File::create(CONFIG);
-
-                            if config_file.is_err() {
-                                error!("Error while reading the config file.");
-                                panic!();
+                                app.handle_state_change(("", State::Start), None);
                             }
-
-                            let mut writer = BufWriter::new(config_file.unwrap());
-                            serde_json::to_writer(&mut writer, &app_config).unwrap();
-                            writer.flush().unwrap();
-
-                            app.popup
-                                .activate_popup("Preset created successfuly :)", Color::Green);
-
-                            app.handle_state_change(("", State::Start), None);
                         }
                     }
 
@@ -241,13 +264,13 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         let selected_item = app.items.get_selected_item();
                         match selected_item {
                             Some(item) if item.1 == State::RunConfig => {
-                                let presets = app_config.find_preset_by_name(&item.0);
+                                let preset = app_config.find_preset_by_name(&item.0);
 
-                                if let Some(presets) = presets {
-                                    let presets = vec![presets.to_owned()];
+                                if let Some(preset) = preset {
+                                    app.current_preset = Some(preset.clone());
                                     app.handle_state_change(
                                         ("", State::EditPreset),
-                                        Some(&presets),
+                                        Some(&app_config.presets),
                                     );
                                 }
                             }
@@ -282,10 +305,16 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                                 let index = app.items.get_selected_item_index().unwrap();
 
                                 if pr.change_name(index, &app.input).is_err() {
+                                    error!("Eerror when trying to change field name.");
                                     continue;
                                 }
+
+                                app.current_preset = Some(pr.clone());
                             }
                         }
+                        info!("current : {:?}", &app.current_preset);
+                        write_preset_to_file(&mut app_config, &app.messages, WriteType::Edit)
+                            .expect("Error when writing to a file of an edited preset.");
 
                         app.handle_state_change(("", State::EditPreset), Some(&app_config.presets));
                     }

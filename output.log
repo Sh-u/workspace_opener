@@ -1,7 +1,1 @@
-22:46:14 [WARN] arg index: 0
-22:46:16 [WARN] arg index: 0
-22:46:16 [WARN] arg index: 1
-22:46:16 [WARN] arg index: 2
-22:46:18 [WARN] arg index: 0
-22:46:41 [WARN] arg index: 0
-22:46:45 [WARN] arg index: 0
+15:15:47 [INFO] current : Some(Preset { name: "siema1", terminal_path: "siema", windows: 2, args: ["s", ""] })

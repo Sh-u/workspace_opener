@@ -10,6 +10,16 @@ pub enum State {
     ChangePresetField,
     RunConfig,
 }
+#[derive(Debug)]
+pub enum InputMode {
+    Normal,
+    Input,
+    Edit,
+}
+pub enum WriteType {
+    Create,
+    Edit,
+}
 pub struct Popup {
     pub(super) active: bool,
     pub(super) message: String,
@@ -30,12 +40,6 @@ pub struct Preset {
     pub(super) terminal_path: String,
     pub(super) windows: u8,
     pub(super) args: Vec<String>,
-}
-#[derive(Debug)]
-pub enum InputMode {
-    Normal,
-    Input,
-    Edit,
 }
 pub struct App {
     pub(super) state: State,
