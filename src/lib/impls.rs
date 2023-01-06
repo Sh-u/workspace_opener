@@ -1,5 +1,4 @@
 use super::model::{App, AppConfig, InputMode, Popup, Preset, State, StatefulList};
-use log::info;
 use tui::{style::Color, widgets::ListState};
 
 impl State {
@@ -8,6 +7,17 @@ impl State {
             State::Start => Some(vec![
                 ("Choose Preset.".to_string(), State::ChoosePreset),
                 ("Create Preset.".to_string(), State::CreatePreset),
+                ("Settings.".to_string(), State::Settings),
+            ]),
+            State::Settings => Some(vec![
+                (
+                    "Duplicate tab hotkey: ctrl+shift+d".to_string(),
+                    State::ChangeFieldName,
+                ),
+                (
+                    "Duplicate pane hotkey: alt+shift+d".to_string(),
+                    State::ChangeFieldName,
+                ),
             ]),
             _ => None,
         }
@@ -203,6 +213,7 @@ impl App {
     pub fn default() -> App {
         App {
             state: State::Start,
+            previous_state: State::Start,
             items: StatefulList::with_items(State::Start.create_items().unwrap()),
             prompts: Vec::new(),
             input: String::new(),
@@ -210,6 +221,7 @@ impl App {
             messages: Vec::new(),
             popup: Popup::default(),
             current_preset: None,
+            debug_mode: true,
         }
     }
     pub fn get_state(&self) -> State {
@@ -219,13 +231,19 @@ impl App {
     pub fn handle_state_change(
         &mut self,
         (item_name, new_state): (&str, State),
-        config_presets: Option<&Vec<Preset>>,
+        app_config: Option<&AppConfig>,
     ) {
         if new_state == self.state {
             return ();
         }
 
+        self.previous_state = match new_state {
+            State::EditPreset => State::ChoosePreset,
+            State::ChangeFieldName => self.get_state(),
+            _ => State::Start,
+        };
         self.state = new_state;
+
         self.input.clear();
         self.messages.clear();
 
@@ -241,35 +259,39 @@ impl App {
             }
             State::ChoosePreset => {
                 self.items.items.clear();
-                match config_presets {
-                    Some(presets) if presets.len() > 0 => {
-                        for preset in presets {
-                            self.items
-                                .items
-                                .push((preset.name.to_string(), State::RunConfig));
+                if let Some(config) = app_config {
+                    match &config.presets {
+                        presets if !presets.is_empty() => {
+                            for preset in presets {
+                                self.items
+                                    .items
+                                    .push((preset.name.to_string(), State::RunConfig));
+                            }
                         }
-                    }
-                    _ => {
-                        self.handle_state_change(("", State::Start), None);
-                        self.popup.activate_popup("No presets created.", Color::Red);
+                        _ => {
+                            self.handle_state_change(("", State::Start), None);
+                            self.popup.activate_popup("No presets created.", Color::Red);
+                        }
                     }
                 }
             }
             State::EditPreset => {
                 self.input_mode = InputMode::Normal;
                 self.items.items.clear();
-                match config_presets {
-                    Some(presets) if presets.len() > 0 => {
-                        let new_items = self.current_preset.clone().unwrap().into_items();
+                if let Some(config) = app_config {
+                    match &config.presets {
+                        presets if !presets.is_empty() => {
+                            let new_items = self.current_preset.clone().unwrap().into_items();
 
-                        for item in new_items {
-                            self.items.items.push((item, State::ChangePresetField));
+                            for item in new_items {
+                                self.items.items.push((item, State::ChangeFieldName));
+                            }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
-            State::ChangePresetField => {
+            State::ChangeFieldName => {
                 self.input_mode = InputMode::Edit;
                 let index = item_name.find(":").unwrap();
                 let new_input = item_name[index + 1..].trim();
@@ -285,6 +307,7 @@ impl App {
                 for item in new_items {
                     self.items.items.push(item);
                 }
+                self.items.list_state.select(Some(0));
             }
         };
     }

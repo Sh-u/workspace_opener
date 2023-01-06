@@ -74,7 +74,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let input_block = Block::default().title("Input").borders(Borders::ALL);
 
     match app.state {
-        State::EditPreset | State::ChangePresetField => {
+        State::EditPreset | State::ChangeFieldName => {
             main_block_style = main_block_style.fg(edit_color);
             controls.push(Span::raw(", "));
             controls.push(Span::styled(
@@ -98,6 +98,14 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
         let popup_message = Paragraph::new(Span::from(app.popup.message.to_string()))
             .style(Style::default().fg(app.popup.color));
         f.render_widget(popup_message.block(popup_block), area);
+    }
+
+    if app.debug_mode {
+        controls.push(Span::raw(", State:"));
+        controls.push(Span::styled(
+            format!(" {:?}", app.get_state()),
+            Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
+        ));
     }
 
     match app.input_mode {
@@ -247,7 +255,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                                 app.popup
                                     .activate_popup("Preset created successfuly :)", Color::Green);
 
-                                app.handle_state_change(("", State::Start), None);
+                                app.handle_state_change(("", app.previous_state), None);
                             }
                         }
                     }
@@ -276,7 +284,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                                     app.current_preset = Some(preset.clone());
                                     app.handle_state_change(
                                         ("", State::EditPreset),
-                                        Some(&app_config.presets),
+                                        Some(&app_config),
                                     );
                                 }
                             }
@@ -291,7 +299,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         let selected_item = app.items.get_selected_item();
 
                         if let Some(i) = selected_item {
-                            app.handle_state_change((i.0.as_str(), i.1), Some(&app_config.presets));
+                            app.handle_state_change((i.0.as_str(), i.1), Some(&app_config));
                         }
                     }
                     KeyCode::Esc => {
@@ -300,7 +308,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                             continue;
                         }
 
-                        app.handle_state_change(("", State::Start), None);
+                        app.handle_state_change(("", app.previous_state), Some(&app_config));
                     }
                     _ => {}
                 },
@@ -318,11 +326,11 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                                 app.current_preset = Some(pr.clone());
                             }
                         }
-                        info!("current : {:?}", &app.current_preset);
+
                         write_preset_to_file(&mut app_config, &app.messages, WriteType::Edit)
                             .expect("Error when writing to a file of an edited preset.");
 
-                        app.handle_state_change(("", State::EditPreset), Some(&app_config.presets));
+                        app.handle_state_change(("", State::EditPreset), Some(&app_config));
                     }
                     KeyCode::Char(c) => {
                         app.input.push(c);
@@ -331,7 +339,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         app.input.pop();
                     }
                     KeyCode::Esc => {
-                        app.handle_state_change(("", State::EditPreset), Some(&app_config.presets));
+                        app.handle_state_change(("", app.previous_state), Some(&app_config));
                     }
                     _ => {}
                 },

@@ -4,10 +4,11 @@ use tui::{style::Color, widgets::ListState};
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum State {
     Start,
+    Settings,
     ChoosePreset,
     CreatePreset,
     EditPreset,
-    ChangePresetField,
+    ChangeFieldName,
     RunConfig,
 }
 #[derive(Debug)]
@@ -33,7 +34,14 @@ pub struct StatefulList {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppConfig {
     pub(super) presets: Vec<Preset>,
+    pub(super) settings: Settings,
 }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Settings {
+    pub(super) duplicate_tab: String,
+    pub(super) duplicate_pane: String,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Preset {
     pub(super) name: String,
@@ -43,6 +51,7 @@ pub struct Preset {
 }
 pub struct App {
     pub(super) state: State,
+    pub(super) previous_state: State,
     pub(super) items: StatefulList,
     pub(super) prompts: Vec<String>,
     pub(super) input: String,
@@ -50,4 +59,5 @@ pub struct App {
     pub(super) messages: Vec<String>,
     pub(super) popup: Popup,
     pub(super) current_preset: Option<Preset>,
+    pub(super) debug_mode: bool,
 }

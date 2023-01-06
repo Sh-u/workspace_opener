@@ -1,1 +1,15 @@
-{"presets":[{"name":"dudu2","terminal_path":"dupaD","windows":2,"args":["xdD1","xdD3"]},{"name":"siema1","terminal_path":"siema","windows":3,"args":["s","",""]}]}
+{
+  "presets": [
+    {
+      "name": "dudu4",
+      "terminal_path": "dupa",
+      "windows": 1,
+      "args": ["ghgfhgfh"]
+    },
+    { "name": "siema2", "terminal_path": "siema", "windows": 1, "args": ["s"] }
+  ],
+  "settings": {
+    "duplicate_tab": "ctrl+shift+d",
+    "duplicate_pane": "alt+shift+d"
+  }
+}
