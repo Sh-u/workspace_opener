@@ -1,8 +1,10 @@
-use super::model::{App, AppConfig, InputMode, Popup, Preset, State, StatefulList};
+use std::borrow::BorrowMut;
+
+use super::model::{App, AppConfig, InputMode, Popup, Preset, Settings, State, StatefulList};
 use tui::{style::Color, widgets::ListState};
 
 impl State {
-    fn create_items(&self) -> Option<Vec<(String, State)>> {
+    fn create_items(&self, app_config: Option<&AppConfig>) -> Option<Vec<(String, State)>> {
         match self {
             State::Start => Some(vec![
                 ("Choose Preset.".to_string(), State::ChoosePreset),
@@ -11,11 +13,17 @@ impl State {
             ]),
             State::Settings => Some(vec![
                 (
-                    "Duplicate tab hotkey: ctrl+shift+d".to_string(),
+                    format!(
+                        "Duplicate tab hotkey: {}",
+                        app_config.unwrap().settings.duplicate_tab
+                    ),
                     State::ChangeFieldName,
                 ),
                 (
-                    "Duplicate pane hotkey: alt+shift+d".to_string(),
+                    format!(
+                        "Duplicate pane hotkey: {}",
+                        app_config.unwrap().settings.duplicate_pane
+                    ),
                     State::ChangeFieldName,
                 ),
             ]),
@@ -214,7 +222,7 @@ impl App {
         App {
             state: State::Start,
             previous_state: State::Start,
-            items: StatefulList::with_items(State::Start.create_items().unwrap()),
+            items: StatefulList::with_items(State::Start.create_items(None).unwrap()),
             prompts: Vec::new(),
             input: String::new(),
             input_mode: InputMode::Normal,
@@ -302,14 +310,15 @@ impl App {
                 self.prompts.clear();
                 self.current_preset = None;
                 self.input_mode = InputMode::Normal;
-                let new_items = self.state.create_items().unwrap();
+                let new_items = self.state.create_items(app_config).unwrap();
 
                 for item in new_items {
                     self.items.items.push(item);
                 }
-                self.items.list_state.select(Some(0));
             }
         };
+
+        self.items.list_state.select(Some(0));
     }
 }
 
@@ -320,5 +329,24 @@ impl AppConfig {
         } else {
             None
         }
+    }
+}
+
+impl Settings {
+    pub fn change_name(&mut self, index: usize, new_name: &str) -> Result<(), String> {
+        match index {
+            0 => {
+                self.duplicate_tab = new_name.to_string();
+            }
+            1 => {
+                self.duplicate_pane = new_name.to_string();
+            }
+            _ => {
+                return Err(String::from(
+                    "Trying to change the name while using wrong index.",
+                ));
+            }
+        }
+        Ok(())
     }
 }

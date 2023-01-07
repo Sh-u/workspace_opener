@@ -106,6 +106,14 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
             format!(" {:?}", app.get_state()),
             Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
         ));
+
+        controls.push(Span::raw(", InputMode:"));
+        controls.push(Span::styled(
+            format!(" {:?}", app.input_mode),
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::LightYellow),
+        ));
     }
 
     match app.input_mode {
@@ -164,12 +172,13 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .highlight_symbol("> ");
 
             controls.push(Span::raw("."));
-            let controls = Paragraph::new(Text::from(Spans::from(controls)));
 
-            f.render_widget(controls, chunks[0]);
             f.render_stateful_widget(items, chunks[1], &mut app.items.list_state);
         }
     }
+    let controls = Paragraph::new(Text::from(Spans::from(controls)));
+
+    f.render_widget(controls, chunks[0]);
 }
 
 fn write_preset_to_file(
@@ -314,10 +323,10 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                 },
                 InputMode::Edit => match key.code {
                     KeyCode::Enter => {
+                        let Some(index) = app.items.get_selected_item_index() else {continue;};
+
                         if let Some(pr) = &app.current_preset {
                             if let Some(pr) = app_config.find_preset_by_name(&pr.name) {
-                                let index = app.items.get_selected_item_index().unwrap();
-
                                 if let Err(err) = pr.change_name(index, &app.input) {
                                     error!("{}", err);
                                     continue;
@@ -325,12 +334,18 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
 
                                 app.current_preset = Some(pr.clone());
                             }
+                        } else {
+                            if let Err(err) = app_config.settings.change_name(index, &app.input) {
+                                error!("{}", err);
+                                continue;
+                            }
                         }
 
                         write_preset_to_file(&mut app_config, &app.messages, WriteType::Edit)
                             .expect("Error when writing to a file of an edited preset.");
 
-                        app.handle_state_change(("", State::EditPreset), Some(&app_config));
+                        warn!("previous state: {:?}", app.previous_state);
+                        app.handle_state_change(("", app.previous_state), Some(&app_config));
                     }
                     KeyCode::Char(c) => {
                         app.input.push(c);

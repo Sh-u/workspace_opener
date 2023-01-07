@@ -1,15 +1,1 @@
-{
-  "presets": [
-    {
-      "name": "dudu4",
-      "terminal_path": "dupa",
-      "windows": 1,
-      "args": ["ghgfhgfh"]
-    },
-    { "name": "siema2", "terminal_path": "siema", "windows": 1, "args": ["s"] }
-  ],
-  "settings": {
-    "duplicate_tab": "ctrl+shift+d",
-    "duplicate_pane": "alt+shift+d"
-  }
-}
+{"presets":[{"name":"dudu","terminal_path":"preset","windows":1,"args":["hej"]}],"settings":{"duplicate_tab":"alt+d","duplicate_pane":""}}
