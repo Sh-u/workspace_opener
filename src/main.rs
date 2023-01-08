@@ -10,9 +10,6 @@ use simplelog::{Config, WriteLogger};
 use std::{error::Error, fs::File, io};
 use tui::{backend::CrosstermBackend, Terminal};
 
-const PATH: &str =
-    "C:/Program Files/WindowsApps/Microsoft.WindowsTerminal_1.15.2874.0_x64__8wekyb3d8bbwe/wt.exe";
-
 fn main() -> Result<(), Box<dyn Error>> {
     let _ = WriteLogger::init(
         LevelFilter::Info,

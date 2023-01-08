@@ -2,6 +2,7 @@ use super::model::{App, AppConfig, InputMode, Preset, State, WriteType};
 use crossterm::event::{self, Event, KeyCode};
 use log::*;
 use std::iter;
+use std::process::Stdio;
 use std::{
     fs::{self, read_to_string, File},
     io::{BufWriter, Write},
@@ -15,6 +16,8 @@ use tui::{
     Frame, Terminal,
 };
 const CONFIG: &'static str = "config.json";
+
+const PATH: &str = "../../../../mnt/c/Program Files/WindowsApps/Microsoft.WindowsTerminal_1.15.3465.0_x64__8wekyb3d8bbwe/WindowsTerminal.exe";
 
 fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
     let layout = Layout::default()
@@ -204,11 +207,32 @@ fn write_preset_to_file(
 
     Ok(())
 }
+
+fn run_config() {
+    let mut process = std::process::Command::new(PATH)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to launch the target process.");
+
+    process
+        .stdin
+        .as_mut()
+        .expect("failed to get stdin")
+        .write_all(b"siema\n")
+        .expect("failed to write to stdin");
+}
+
 pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
     let cfg_file_string = fs::read_to_string(CONFIG).unwrap();
     let mut app_config: AppConfig = serde_json::from_str(&cfg_file_string).unwrap();
 
     loop {
+        if app.state == State::RunConfig {
+            run_config();
+            break;
+        }
+
         terminal.draw(|f| ui(f, app)).unwrap();
 
         let event = event::read().unwrap();

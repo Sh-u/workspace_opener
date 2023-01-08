@@ -305,6 +305,7 @@ impl App {
                 let new_input = item_name[index + 1..].trim();
                 self.input = new_input.to_string();
             }
+            State::RunConfig => {}
             _ => {
                 self.items.items.clear();
                 self.prompts.clear();
