@@ -38,6 +38,7 @@ pub struct AppConfig {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Settings {
+    // pub(super) terminal_path: String,
     pub(super) duplicate_tab: String,
     pub(super) duplicate_pane: String,
 }
@@ -45,8 +46,8 @@ pub struct Settings {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Preset {
     pub(super) name: String,
-    pub(super) terminal_path: String,
-    pub(super) windows: u8,
+    pub(super) tabs: u8,
+    pub(super) windows: Vec<u8>,
     pub(super) args: Vec<String>,
 }
 pub struct App {

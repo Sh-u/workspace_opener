@@ -35,8 +35,7 @@ impl State {
         match self {
             State::CreatePreset => Some(vec![
                 "Enter your new preset name:".to_string(),
-                "Enter a valid path to your terminal:".to_string(),
-                "Enter windows amount (number only): ".to_string(),
+                "Enter tabs amount (number only):".to_string(),
             ]),
             _ => None,
         }
@@ -106,41 +105,55 @@ impl StatefulList {
         }
     }
 
-    pub fn change_selected_item_name(&mut self, new_item: &str) -> Option<(String, String)> {
-        match self.list_state.selected() {
-            Some(index) => match self.items.get_mut(index) {
-                Some(i) => {
-                    let old_name = i.0.to_string();
-                    i.0 = Preset::get_prefix(index) + new_item;
-                    Some((old_name, i.0.to_string()))
-                }
-                None => None,
-            },
-            None => None,
-        }
-    }
+    // pub fn change_selected_item_name(&mut self, new_item: &str) -> Option<(String, String)> {
+    //     match self.list_state.selected() {
+    //         Some(index) => match self.items.get_mut(index) {
+    //             Some(i) => {
+    //                 let old_name = i.0.to_string();
+    //                 i.0 = Preset::get_prefix(index) + new_item;
+    //                 Some((old_name, i.0.to_string()))
+    //             }
+    //             None => None,
+    //         },
+    //         None => None,
+    //     }
+    // }
 }
-
+//2 3
 impl Preset {
     pub fn new(input: &Vec<String>) -> Self {
+        let name = input.get(0).unwrap().to_string();
+        let tabs = input
+            .get(1)
+            .unwrap()
+            .parse::<u8>()
+            .expect("Failed to parse tabs arg.");
+        let windows = input
+            .iter()
+            .skip(2)
+            .take(tabs as usize)
+            .map(|arg| arg.parse::<u8>().expect("Failed to parse a winows arg."))
+            .collect::<Vec<u8>>();
+        let args = input
+            .iter()
+            .skip(3)
+            .map(|arg| arg.to_string())
+            .collect::<Vec<String>>();
         Preset {
-            name: input.get(0).unwrap().to_string(),
-            terminal_path: input.get(1).unwrap().to_string(),
-            windows: input.get(2).unwrap().parse::<u8>().unwrap(),
-            args: input
-                .iter()
-                .skip(3)
-                .map(|arg| arg.to_string())
-                .collect::<Vec<String>>(),
+            name,
+            tabs,
+            windows,
+            args,
         }
     }
-
-    pub fn get_prefix(index: usize) -> String {
+    // name, t2, w3, w1,
+    // 0   , 1 , 2 , 3 ,
+    pub fn get_prefix(&self, index: usize) -> String {
         match index {
             0 => "Name: ".to_string(),
-            1 => "Terminal path: ".to_string(),
-            2 => "Windows amount: ".to_string(),
-            x => format!("Arg {}: ", x - 2),
+            1 => "Tabs amount: ".to_string(),
+            x if (2..2 + self.windows.len()).contains(&x) => format!("Windows in tab {}: ", x),
+            x => format!("Arg {}: ", x - self.windows.len()),
         }
     }
 
@@ -150,26 +163,35 @@ impl Preset {
                 self.name = new_name.to_string();
             }
             1 => {
-                self.terminal_path = new_name.to_string();
-            }
-            2 => {
                 if let Ok(v) = new_name.parse::<u8>() {
                     if v == 0 {
-                        return Err(String::from("Windows cannot have a value of 0."));
+                        return Err(String::from("Tabs cannot have a value of 0."));
                     }
-                    let old_windows = self.windows;
+                    let old_tabs = self.tabs;
 
-                    if v < self.windows {
-                        for _n in 0..old_windows - v {
+                    if v < self.tabs {
+                        for _n in 0..old_tabs - v {
                             self.args.pop();
                         }
                     } else {
-                        for _n in 0..v - old_windows {
+                        for _n in 0..v - old_tabs {
                             self.args.push(format!(""))
                         }
                     }
 
-                    self.windows = v;
+                    self.tabs = v;
+                } else {
+                    return Err(String::from("Tabs has to be a number."));
+                }
+            }
+            x if x == 2 + self.tabs as usize => {
+                if let Ok(v) = new_name.parse::<u8>() {
+                    if v == 0 {
+                        return Err(String::from("Windows cannot have a value of 0."));
+                    }
+
+                    let index = x - 3;
+                    *self.windows.get_mut(index).unwrap() = v;
                 } else {
                     return Err(String::from("Windows has to be a number."));
                 }
@@ -187,11 +209,14 @@ impl Preset {
     }
     pub fn into_items(&self) -> Vec<String> {
         let mut items = vec![];
-        items.push(Self::get_prefix(0) + self.name.as_str());
-        items.push(Self::get_prefix(1) + self.terminal_path.as_str());
-        items.push(Self::get_prefix(2) + &self.windows.to_string());
+        items.push(self.get_prefix(0) + self.name.as_str());
+        items.push(self.get_prefix(1) + &self.tabs.to_string());
+        for window in self.windows.iter().enumerate() {
+            items.push(self.get_prefix(window.0 + 2) + &window.1.to_string());
+        }
+
         for arg in self.args.iter().enumerate() {
-            items.push(Self::get_prefix(arg.0 + 3) + arg.1);
+            items.push(self.get_prefix(arg.0 + 3) + arg.1);
         }
         items
     }

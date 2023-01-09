@@ -1,12 +1,16 @@
 use super::model::{App, AppConfig, InputMode, Preset, State, WriteType};
 use crossterm::event::{self, Event, KeyCode};
 use log::*;
+use std::io::BufReader;
 use std::iter;
 use std::process::Stdio;
 use std::{
     fs::{self, read_to_string, File},
     io::{BufWriter, Write},
 };
+
+use std::thread::sleep;
+use std::time::Duration;
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -17,7 +21,8 @@ use tui::{
 };
 const CONFIG: &'static str = "config.json";
 
-const PATH: &str = "../../../../mnt/c/Program Files/WindowsApps/Microsoft.WindowsTerminal_1.15.3465.0_x64__8wekyb3d8bbwe/WindowsTerminal.exe";
+const PATH: &str = "../../../../mnt/c/Users/kacperek/AppData/Local/Microsoft/WindowsApps/wt.exe";
+// const PATH: &'static str = "../../../../bin/fish";
 
 fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
     let layout = Layout::default()
@@ -117,6 +122,9 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .add_modifier(Modifier::BOLD)
                 .fg(Color::LightYellow),
         ));
+
+        controls.push(Span::raw(format!(", prompts len: {}", app.prompts.len())));
+        controls.push(Span::raw(format!(", msg len: {}", app.messages.len())));
     }
 
     match app.input_mode {
@@ -208,28 +216,34 @@ fn write_preset_to_file(
     Ok(())
 }
 
-fn run_config() {
-    let mut process = std::process::Command::new(PATH)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
+fn run_config(selected_name: &str, app_config: &mut AppConfig) {
+    let Some(preset) = app_config
+        .find_preset_by_name(selected_name)
+        .map(|val| &*val) else {
+            error!("Cannot find the matching preset name while trying to run the config.");
+            panic!();
+        };
+
+    let arg = String::new();
+
+    let mut process = std::process::Command::new("powershell.exe")
+        .arg("wt.exe split-pane -p \"Command Prompt\"")
         .spawn()
         .expect("Failed to launch the target process.");
-
-    process
-        .stdin
-        .as_mut()
-        .expect("failed to get stdin")
-        .write_all(b"siema\n")
-        .expect("failed to write to stdin");
 }
 
 pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
     let cfg_file_string = fs::read_to_string(CONFIG).unwrap();
     let mut app_config: AppConfig = serde_json::from_str(&cfg_file_string).unwrap();
-
+    let mut windows = vec![];
+    let mut done = false;
     loop {
         if app.state == State::RunConfig {
-            run_config();
+            let selected_item = app
+                .items
+                .get_selected_item()
+                .expect("There is no selected item when trying to run the config.");
+            run_config(selected_item.0.as_str(), &mut app_config);
             break;
         }
 
@@ -254,30 +268,34 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         let _prompts_len = app.prompts.len();
                         let msg_length = app.messages.len();
 
-                        match msg_length {
-                            x if x == _prompts_len && x != 2 && x != 3 => {
-                                continue;
-                            }
-                            2 => {
-                                let windows_number = app.input.as_str().trim().parse::<u8>();
+                        if msg_length == 1 {
+                            let Ok(tabs_amount) = app.input.as_str().trim().parse::<u8>() else {continue;};
 
-                                if let Ok(num) = windows_number {
-                                    for n in 1..=num {
-                                        app.prompts.push(format!(
-                                            "Enter args for window number {} (split by commas): ",
-                                            n
-                                        ));
-                                    }
-                                } else {
-                                    continue;
-                                }
+                            for n in 1..=tabs_amount {
+                                app.prompts
+                                    .push(format!("Enter windows amount for tab number {}: ", n));
                             }
-                            _ => {}
+                            windows.reserve(tabs_amount as usize);
+                        } else if msg_length > 1 {
+                            if windows.capacity() != windows.len() {
+                                windows.push(app.input.parse::<u8>().unwrap());
+                            } else if !done {
+                                for (index, &windows_amount) in windows.iter().enumerate() {
+                                    for n in 1..=windows_amount {
+                                        app.prompts
+                                            .push(format!("Enter arg {} for window {}", n, index));
+                                    }
+                                }
+
+                                done = true;
+                            }
                         }
 
                         app.messages.push(app.input.drain(..).collect());
 
                         if app.messages.len() == app.prompts.len() {
+                            windows.clear();
+
                             if write_preset_to_file(
                                 &mut app_config,
                                 &app.messages,
