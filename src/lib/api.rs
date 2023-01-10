@@ -1,6 +1,7 @@
-use super::model::{App, AppConfig, InputMode, Preset, State, WriteType};
+use super::model::{App, AppConfig, InputMode, Preset, PresetCreationHelper, State, WriteType};
 use crossterm::event::{self, Event, KeyCode};
 use log::*;
+use std::collections::VecDeque;
 use std::io::BufReader;
 use std::iter;
 use std::process::Stdio;
@@ -109,22 +110,28 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     }
 
     if app.debug_mode {
-        controls.push(Span::raw(", State:"));
-        controls.push(Span::styled(
-            format!(" {:?}", app.get_state()),
-            Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
-        ));
+        // controls.push(Span::raw(", State:"));
+        // controls.push(Span::styled(
+        //     format!(" {:?}", app.get_state()),
+        //     Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
+        // ));
 
-        controls.push(Span::raw(", InputMode:"));
-        controls.push(Span::styled(
-            format!(" {:?}", app.input_mode),
-            Style::default()
-                .add_modifier(Modifier::BOLD)
-                .fg(Color::LightYellow),
-        ));
+        // controls.push(Span::raw(", InputMode:"));
+        // controls.push(Span::styled(
+        //     format!(" {:?}", app.input_mode),
+        //     Style::default()
+        //         .add_modifier(Modifier::BOLD)
+        //         .fg(Color::LightYellow),
+        // ));
 
-        controls.push(Span::raw(format!(", prompts len: {}", app.prompts.len())));
-        controls.push(Span::raw(format!(", msg len: {}", app.messages.len())));
+        // controls.push(Span::raw(format!(", prompts len: {}", app.prompts.len())));
+        // controls.push(Span::raw(format!(", msg len: {}", app.messages.len())));
+        let (item, index) = app.items.get_selected_item().unwrap();
+        controls.push(Span::raw(format!(
+            ", item: {:?}, index: {:?}",
+            item,
+            app.items.get_selected_item_index().unwrap()
+        )));
     }
 
     match app.input_mode {
@@ -235,8 +242,7 @@ fn run_config(selected_name: &str, app_config: &mut AppConfig) {
 pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
     let cfg_file_string = fs::read_to_string(CONFIG).unwrap();
     let mut app_config: AppConfig = serde_json::from_str(&cfg_file_string).unwrap();
-    let mut windows = vec![];
-    let mut done = false;
+    let mut pch = PresetCreationHelper::new();
     loop {
         if app.state == State::RunConfig {
             let selected_item = app
@@ -265,7 +271,6 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                             continue;
                         }
 
-                        let _prompts_len = app.prompts.len();
                         let msg_length = app.messages.len();
 
                         if msg_length == 1 {
@@ -275,26 +280,25 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                                 app.prompts
                                     .push(format!("Enter windows amount for tab number {}: ", n));
                             }
-                            windows.reserve(tabs_amount as usize);
-                        } else if msg_length > 1 {
-                            if windows.capacity() != windows.len() {
-                                windows.push(app.input.parse::<u8>().unwrap());
-                            } else if !done {
-                                for (index, &windows_amount) in windows.iter().enumerate() {
-                                    for n in 1..=windows_amount {
-                                        app.prompts
-                                            .push(format!("Enter arg {} for window {}", n, index));
-                                    }
-                                }
+                            pch.max_windows = tabs_amount as usize;
+                        } else if msg_length > 1 && pch.windows.len() < pch.max_windows {
+                            let Ok(input) = app.input.parse::<u8>() else {continue;};
+                            pch.windows.push_back(input);
 
-                                done = true;
+                            let Some(&windows_back) = pch.windows.back() else {continue;};
+                            for n in 1..=windows_back {
+                                app.prompts.push(format!(
+                                    "Enter arg {} for window {}",
+                                    n,
+                                    pch.windows.len()
+                                ));
                             }
                         }
 
                         app.messages.push(app.input.drain(..).collect());
 
                         if app.messages.len() == app.prompts.len() {
-                            windows.clear();
+                            pch.reset();
 
                             if write_preset_to_file(
                                 &mut app_config,
@@ -316,6 +320,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                             app.popup.deactivate_popup();
                             continue;
                         }
+                        pch.reset();
                         app.handle_state_change(("", State::Start), None);
                     }
 

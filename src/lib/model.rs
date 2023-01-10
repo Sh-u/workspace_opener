@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use serde::{Deserialize, Serialize};
 use tui::{style::Color, widgets::ListState};
 
@@ -50,6 +52,7 @@ pub struct Preset {
     pub(super) windows: Vec<u8>,
     pub(super) args: Vec<String>,
 }
+
 pub struct App {
     pub(super) state: State,
     pub(super) previous_state: State,
@@ -61,4 +64,9 @@ pub struct App {
     pub(super) popup: Popup,
     pub(super) current_preset: Option<Preset>,
     pub(super) debug_mode: bool,
+}
+
+pub struct PresetCreationHelper {
+    pub(super) windows: VecDeque<u8>,
+    pub(super) max_windows: usize,
 }

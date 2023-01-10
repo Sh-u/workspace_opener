@@ -1,6 +1,9 @@
-use std::borrow::BorrowMut;
+use std::{borrow::BorrowMut, collections::VecDeque};
 
-use super::model::{App, AppConfig, InputMode, Popup, Preset, Settings, State, StatefulList};
+use super::model::{
+    App, AppConfig, InputMode, Popup, Preset, PresetCreationHelper, Settings, State, StatefulList,
+};
+use log::warn;
 use tui::{style::Color, widgets::ListState};
 
 impl State {
@@ -104,22 +107,8 @@ impl StatefulList {
             None => None,
         }
     }
-
-    // pub fn change_selected_item_name(&mut self, new_item: &str) -> Option<(String, String)> {
-    //     match self.list_state.selected() {
-    //         Some(index) => match self.items.get_mut(index) {
-    //             Some(i) => {
-    //                 let old_name = i.0.to_string();
-    //                 i.0 = Preset::get_prefix(index) + new_item;
-    //                 Some((old_name, i.0.to_string()))
-    //             }
-    //             None => None,
-    //         },
-    //         None => None,
-    //     }
-    // }
 }
-//2 3
+
 impl Preset {
     pub fn new(input: &Vec<String>) -> Self {
         let name = input.get(0).unwrap().to_string();
@@ -136,7 +125,7 @@ impl Preset {
             .collect::<Vec<u8>>();
         let args = input
             .iter()
-            .skip(3)
+            .skip(2 + windows.len())
             .map(|arg| arg.to_string())
             .collect::<Vec<String>>();
         Preset {
@@ -146,40 +135,32 @@ impl Preset {
             args,
         }
     }
-    // name, t2, w3, w1,
-    // 0   , 1 , 2 , 3 ,
-    pub fn get_prefix(&self, index: usize) -> String {
-        match index {
-            0 => "Name: ".to_string(),
-            1 => "Tabs amount: ".to_string(),
-            x if (2..2 + self.windows.len()).contains(&x) => format!("Windows in tab {}: ", x),
-            x => format!("Arg {}: ", x - self.windows.len()),
-        }
-    }
 
     pub fn change_name(&mut self, index: usize, new_name: &str) -> Result<(), String> {
+        let windows_len = self.windows.len();
+        let args_len = self.args.len();
         match index {
             0 => {
                 self.name = new_name.to_string();
             }
             1 => {
-                if let Ok(v) = new_name.parse::<u8>() {
-                    if v == 0 {
+                if let Ok(new_tabs) = new_name.parse::<u8>() {
+                    if new_tabs == 0 {
                         return Err(String::from("Tabs cannot have a value of 0."));
                     }
                     let old_tabs = self.tabs;
 
-                    if v < self.tabs {
-                        for _n in 0..old_tabs - v {
-                            self.args.pop();
+                    if new_tabs < self.tabs {
+                        for _n in 0..old_tabs - new_tabs {
+                            self.windows.pop();
                         }
                     } else {
-                        for _n in 0..v - old_tabs {
-                            self.args.push(format!(""))
+                        for _n in 0..new_tabs - old_tabs {
+                            self.windows.push(1)
                         }
                     }
 
-                    self.tabs = v;
+                    self.tabs = new_tabs;
                 } else {
                     return Err(String::from("Tabs has to be a number."));
                 }
@@ -209,15 +190,32 @@ impl Preset {
     }
     pub fn into_items(&self) -> Vec<String> {
         let mut items = vec![];
-        items.push(self.get_prefix(0) + self.name.as_str());
-        items.push(self.get_prefix(1) + &self.tabs.to_string());
-        for window in self.windows.iter().enumerate() {
-            items.push(self.get_prefix(window.0 + 2) + &window.1.to_string());
+
+        items.push(format!("Name: {}", self.name.as_str()));
+        items.push(format!("Tabs: {}", &self.tabs.to_string()));
+
+        for (tab_index, windows_amount) in self.windows.iter().enumerate() {
+            items.push(format!(
+                "Windows in tab {}: {}",
+                tab_index + 1,
+                &windows_amount.to_string()
+            ));
         }
 
-        for arg in self.args.iter().enumerate() {
-            items.push(self.get_prefix(arg.0 + 3) + arg.1);
+        let mut windex_argcount = (0, 0);
+        for arg in self.args.iter() {
+            if windex_argcount.1 >= *self.windows.get(windex_argcount.0).unwrap() {
+                windex_argcount = (windex_argcount.0 + 1, 0)
+            }
+            items.push(format!(
+                "Tab (#{}), window (#{}), Arg: {}",
+                windex_argcount.0 + 1,
+                windex_argcount.1 + 1,
+                arg
+            ));
+            windex_argcount.1 += 1;
         }
+
         items
     }
 }
@@ -341,10 +339,9 @@ impl App {
                 for item in new_items {
                     self.items.items.push(item);
                 }
+                self.items.list_state.select(Some(0));
             }
         };
-
-        self.items.list_state.select(Some(0));
     }
 }
 
@@ -374,5 +371,19 @@ impl Settings {
             }
         }
         Ok(())
+    }
+}
+
+impl PresetCreationHelper {
+    pub fn new() -> Self {
+        PresetCreationHelper {
+            windows: VecDeque::new(),
+            max_windows: 0,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.windows.clear();
+        self.max_windows = 0;
     }
 }
