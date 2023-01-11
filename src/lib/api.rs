@@ -1,17 +1,10 @@
 use super::model::{App, AppConfig, InputMode, Preset, PresetCreationHelper, State, WriteType};
 use crossterm::event::{self, Event, KeyCode};
 use log::*;
-use std::collections::VecDeque;
-use std::io::BufReader;
-use std::iter;
-use std::process::Stdio;
 use std::{
-    fs::{self, read_to_string, File},
+    fs::{self, File},
     io::{BufWriter, Write},
 };
-
-use std::thread::sleep;
-use std::time::Duration;
 use tui::{
     backend::Backend,
     layout::{Constraint, Direction, Layout, Rect},
@@ -110,28 +103,28 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     }
 
     if app.debug_mode {
-        // controls.push(Span::raw(", State:"));
-        // controls.push(Span::styled(
-        //     format!(" {:?}", app.get_state()),
-        //     Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
-        // ));
+        controls.push(Span::raw(", State:"));
+        controls.push(Span::styled(
+            format!(" {:?}", app.get_state()),
+            Style::default().add_modifier(Modifier::BOLD).fg(Color::Red),
+        ));
 
-        // controls.push(Span::raw(", InputMode:"));
-        // controls.push(Span::styled(
-        //     format!(" {:?}", app.input_mode),
-        //     Style::default()
-        //         .add_modifier(Modifier::BOLD)
-        //         .fg(Color::LightYellow),
-        // ));
+        controls.push(Span::raw(", InputMode:"));
+        controls.push(Span::styled(
+            format!(" {:?}", app.input_mode),
+            Style::default()
+                .add_modifier(Modifier::BOLD)
+                .fg(Color::LightYellow),
+        ));
 
         // controls.push(Span::raw(format!(", prompts len: {}", app.prompts.len())));
         // controls.push(Span::raw(format!(", msg len: {}", app.messages.len())));
-        let (item, index) = app.items.get_selected_item().unwrap();
-        controls.push(Span::raw(format!(
-            ", item: {:?}, index: {:?}",
-            item,
-            app.items.get_selected_item_index().unwrap()
-        )));
+        // let (item, index) = app.items.get_selected_item().unwrap();
+        // controls.push(Span::raw(format!(
+        //     ", item: {:?}, index: {:?}",
+        //     item,
+        //     app.items.get_selected_item_index().unwrap()
+        // )));
     }
 
     match app.input_mode {
@@ -167,7 +160,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .items
                 .iter()
                 .map(|item| {
-                    let _lines = vec![Spans::from(item.0.as_str())];
+                    let _lines = vec![Spans::from(item.name.as_str())];
                     ListItem::new(_lines).style(Style::default().fg(Color::White))
                 })
                 .collect::<Vec<ListItem>>();
@@ -249,7 +242,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                 .items
                 .get_selected_item()
                 .expect("There is no selected item when trying to run the config.");
-            run_config(selected_item.0.as_str(), &mut app_config);
+            run_config(selected_item.name.as_str(), &mut app_config);
             break;
         }
 
@@ -331,32 +324,26 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         break;
                     }
                     KeyCode::Char('e') => {
-                        let selected_item = app.items.get_selected_item();
-                        match selected_item {
-                            Some(item) if item.1 == State::RunConfig => {
-                                let preset = app_config.find_preset_by_name(&item.0);
+                        let Some(item) = app.items.get_selected_item() else {continue;};
 
-                                if let Some(preset) = preset {
-                                    app.current_preset = Some(preset.clone());
-                                    app.handle_state_change(
-                                        ("", State::EditPreset),
-                                        Some(&app_config),
-                                    );
-                                }
-                            }
-                            _ => {
-                                continue;
-                            }
-                        }
+                        if item.leading_state != State::RunConfig {
+                            continue;
+                        };
+
+                        let Some(preset) = app_config.find_preset_by_name(&item.name) else {continue;};
+
+                        app.current_preset = Some(preset.clone());
+                        app.handle_state_change(("", State::EditPreset), Some(&app_config));
                     }
                     KeyCode::Down => app.items.next(),
                     KeyCode::Up => app.items.previous(),
                     KeyCode::Enter => {
-                        let selected_item = app.items.get_selected_item();
+                        let Some(item) = app.items.get_selected_item() else {continue;};
 
-                        if let Some(i) = selected_item {
-                            app.handle_state_change((i.0.as_str(), i.1), Some(&app_config));
-                        }
+                        app.handle_state_change(
+                            (item.name.as_str(), item.leading_state),
+                            Some(&app_config),
+                        );
                     }
                     KeyCode::Esc => {
                         if app.popup.active {
@@ -370,18 +357,22 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                 },
                 InputMode::Edit => match key.code {
                     KeyCode::Enter => {
-                        let Some(index) = app.items.get_selected_item_index() else {continue;};
+                        let Some(item) = app.items.get_selected_item() else {continue;};
 
                         if let Some(pr) = &app.current_preset {
-                            if let Some(pr) = app_config.find_preset_by_name(&pr.name) {
-                                if let Err(err) = pr.change_name(index, &app.input) {
-                                    error!("{}", err);
-                                    continue;
-                                }
+                            let Some(pr) = app_config.find_preset_by_name(&pr.name) else{continue;};
+                            let Some(mut pr_value) = item.preset_value else {continue;};
 
-                                app.current_preset = Some(pr.clone());
+                            pr_value.update_value(&app.input).unwrap();
+
+                            if let Err(err) = pr.change_field_value(pr_value) {
+                                error!("{}", err);
+                                continue;
                             }
+                            warn!("success?");
+                            app.current_preset = Some(pr.clone());
                         } else {
+                            let Some(index) = app.items.get_selected_item_index() else {continue;};
                             if let Err(err) = app_config.settings.change_name(index, &app.input) {
                                 error!("{}", err);
                                 continue;
@@ -391,7 +382,6 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         write_preset_to_file(&mut app_config, &app.messages, WriteType::Edit)
                             .expect("Error when writing to a file of an edited preset.");
 
-                        warn!("previous state: {:?}", app.previous_state);
                         app.handle_state_change(("", app.previous_state), Some(&app_config));
                     }
                     KeyCode::Char(c) => {

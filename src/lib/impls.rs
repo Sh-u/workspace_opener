@@ -1,33 +1,45 @@
-use std::{borrow::BorrowMut, collections::VecDeque};
-
 use super::model::{
-    App, AppConfig, InputMode, Popup, Preset, PresetCreationHelper, Settings, State, StatefulList,
+    App, AppConfig, InputMode, Item, Popup, Preset, PresetCreationHelper, PresetValue, Settings,
+    State, StatefulList,
 };
-use log::warn;
+use log::{error, warn};
+use std::collections::VecDeque;
 use tui::{style::Color, widgets::ListState};
 
+impl Item {
+    pub fn new(name: String, leading_state: State, preset_value: Option<PresetValue>) -> Item {
+        Item {
+            name,
+            leading_state,
+            preset_value,
+        }
+    }
+}
+
 impl State {
-    fn create_items(&self, app_config: Option<&AppConfig>) -> Option<Vec<(String, State)>> {
+    fn create_items(&self, app_config: Option<&AppConfig>) -> Option<Vec<Item>> {
         match self {
             State::Start => Some(vec![
-                ("Choose Preset.".to_string(), State::ChoosePreset),
-                ("Create Preset.".to_string(), State::CreatePreset),
-                ("Settings.".to_string(), State::Settings),
+                Item::new("Choose Preset.".to_string(), State::ChoosePreset, None),
+                Item::new("Create Preset.".to_string(), State::CreatePreset, None),
+                Item::new("Settings.".to_string(), State::Settings, None),
             ]),
             State::Settings => Some(vec![
-                (
+                Item::new(
                     format!(
                         "Duplicate tab hotkey: {}",
                         app_config.unwrap().settings.duplicate_tab
                     ),
                     State::ChangeFieldName,
+                    None,
                 ),
-                (
+                Item::new(
                     format!(
                         "Duplicate pane hotkey: {}",
                         app_config.unwrap().settings.duplicate_pane
                     ),
                     State::ChangeFieldName,
+                    None,
                 ),
             ]),
             _ => None,
@@ -46,7 +58,7 @@ impl State {
 }
 
 impl StatefulList {
-    fn with_items(items: Vec<(String, State)>) -> Self {
+    fn with_items(items: Vec<Item>) -> Self {
         let index = match items.len() {
             0 => None,
             _ => Some(0),
@@ -91,10 +103,10 @@ impl StatefulList {
         self.list_state.select(Some(i))
     }
 
-    pub fn get_selected_item(&mut self) -> Option<(String, State)> {
+    pub fn get_selected_item(&self) -> Option<Item> {
         match self.list_state.selected() {
             Some(i) => match self.items.get(i) {
-                Some(i) => Some(i.to_owned()),
+                Some(i) => Some(i.clone()),
                 None => None,
             },
             None => None,
@@ -136,84 +148,126 @@ impl Preset {
         }
     }
 
-    pub fn change_name(&mut self, index: usize, new_name: &str) -> Result<(), String> {
-        let windows_len = self.windows.len();
-        let args_len = self.args.len();
-        match index {
-            0 => {
-                self.name = new_name.to_string();
+    pub fn change_field_value(&mut self, preset_value: PresetValue) -> Result<(), String> {
+        match preset_value {
+            PresetValue::Name(name) => {
+                self.name = name.to_string();
             }
-            1 => {
-                if let Ok(new_tabs) = new_name.parse::<u8>() {
-                    if new_tabs == 0 {
-                        return Err(String::from("Tabs cannot have a value of 0."));
-                    }
-                    let old_tabs = self.tabs;
+            PresetValue::Tabs(new_tabs) => {
+                if new_tabs == 0 {
+                    return Err(String::from("Tabs cannot have a value of 0."));
+                }
+                let old_tabs = self.tabs;
 
-                    if new_tabs < self.tabs {
-                        for _n in 0..old_tabs - new_tabs {
-                            self.windows.pop();
-                        }
-                    } else {
-                        for _n in 0..new_tabs - old_tabs {
-                            self.windows.push(1)
-                        }
+                if new_tabs < self.tabs {
+                    for _n in 0..*self.windows.last().unwrap() {
+                        self.args.pop();
                     }
 
-                    self.tabs = new_tabs;
-                } else {
-                    return Err(String::from("Tabs has to be a number."));
-                }
-            }
-            x if x == 2 + self.tabs as usize => {
-                if let Ok(v) = new_name.parse::<u8>() {
-                    if v == 0 {
-                        return Err(String::from("Windows cannot have a value of 0."));
+                    for _n in 0..old_tabs - new_tabs {
+                        self.windows.pop();
                     }
-
-                    let index = x - 3;
-                    *self.windows.get_mut(index).unwrap() = v;
                 } else {
-                    return Err(String::from("Windows has to be a number."));
+                    for _n in 0..new_tabs - old_tabs {
+                        self.windows.push(1);
+                        self.args.push("".to_string());
+                    }
                 }
+                self.tabs = new_tabs;
             }
-            _ => {
-                if let Some(arg) = self.args.get_mut(index - 3) {
-                    *arg = format!("{}", new_name);
-                } else {
-                    return Err(String::from("Error changing args name."));
+            PresetValue::Windows(index, new_windows) => {
+                if new_windows == 0 {
+                    return Err(String::from("Windows cannot have a value of 0."));
                 }
+                let args_before = self.windows[0..index].iter().sum::<u8>();
+                let Some(old_windows) = self.windows.get_mut(index as usize) else {
+                        return Err(String::from("Cannot find windows with current index."));
+                    };
+
+                let mut args_place_index = (args_before + *old_windows) as usize;
+
+                //
+                if new_windows < *old_windows {
+                    for _n in 0..*old_windows - new_windows {
+                        self.args.remove(args_place_index - 1);
+                        args_place_index -= 1;
+                    }
+                } else {
+                    for _n in 0..new_windows - *old_windows {
+                        self.args.insert(args_place_index, "".to_string());
+                    }
+                }
+
+                *old_windows = new_windows;
+            }
+
+            PresetValue::Args(index, new_name) => {
+                let Some(current_arg) = self.args.get_mut(index as usize) else {
+                    return Err(String::from("Cannot find windows with current index."));
+                };
+                *current_arg = new_name;
             }
         }
 
         Ok(())
     }
-    pub fn into_items(&self) -> Vec<String> {
+    pub fn into_items(&self) -> Vec<Item> {
         let mut items = vec![];
 
-        items.push(format!("Name: {}", self.name.as_str()));
-        items.push(format!("Tabs: {}", &self.tabs.to_string()));
+        let name = Item::new(
+            format!("Name: {}", self.name.as_str()),
+            State::ChangeFieldName,
+            Some(PresetValue::Name(self.name.to_string())),
+        );
+
+        let tabs = Item::new(
+            format!("Tabs: {}", &self.tabs.to_string()),
+            State::ChangeFieldName,
+            Some(PresetValue::Tabs(self.tabs)),
+        );
+
+        items.push(name);
+        items.push(tabs);
 
         for (tab_index, windows_amount) in self.windows.iter().enumerate() {
-            items.push(format!(
-                "Windows in tab {}: {}",
-                tab_index + 1,
-                &windows_amount.to_string()
-            ));
+            let window = Item::new(
+                format!(
+                    "Tab (#{}), windows:{}",
+                    tab_index + 1,
+                    &windows_amount.to_string()
+                ),
+                State::ChangeFieldName,
+                Some(PresetValue::Windows(tab_index, *windows_amount)),
+            );
+            items.push(window);
         }
 
-        let mut windex_argcount = (0, 0);
-        for arg in self.args.iter() {
-            if windex_argcount.1 >= *self.windows.get(windex_argcount.0).unwrap() {
-                windex_argcount = (windex_argcount.0 + 1, 0)
+        let mut window_index = 0;
+        let mut arg_count = 0;
+        for (arg_index, arg) in self.args.iter().enumerate() {
+            let Some(current_window) = self.windows.get(window_index) else {
+                error!("Cannot create items from preset windows: INDEX OUT OF BOUNDS.\nWindows: {:?} \nIndex: {}", self.windows, window_index);
+                panic!();
+            };
+
+            if arg_count >= *current_window {
+                if window_index + 1 < self.windows.len() {
+                    window_index += 1;
+                }
             }
-            items.push(format!(
-                "Tab (#{}), window (#{}), Arg: {}",
-                windex_argcount.0 + 1,
-                windex_argcount.1 + 1,
-                arg
-            ));
-            windex_argcount.1 += 1;
+
+            let arg = Item::new(
+                format!(
+                    "Tab (#{}), window (#{}), Arg: {}",
+                    window_index + 1,
+                    arg_count + 1,
+                    arg
+                ),
+                State::ChangeFieldName,
+                Some(PresetValue::Args(arg_index, arg.to_string())),
+            );
+            items.push(arg);
+            arg_count += 1;
         }
 
         items
@@ -290,19 +344,18 @@ impl App {
             }
             State::ChoosePreset => {
                 self.items.items.clear();
-                if let Some(config) = app_config {
-                    match &config.presets {
-                        presets if !presets.is_empty() => {
-                            for preset in presets {
-                                self.items
-                                    .items
-                                    .push((preset.name.to_string(), State::RunConfig));
-                            }
+                let Some(config) = app_config else {return ();};
+
+                match &config.presets {
+                    presets if !presets.is_empty() => {
+                        for preset in presets {
+                            let item = Item::new(preset.name.to_string(), State::RunConfig, None);
+                            self.items.items.push(item);
                         }
-                        _ => {
-                            self.handle_state_change(("", State::Start), None);
-                            self.popup.activate_popup("No presets created.", Color::Red);
-                        }
+                    }
+                    _ => {
+                        self.handle_state_change(("", State::Start), None);
+                        self.popup.activate_popup("No presets created.", Color::Red);
                     }
                 }
             }
@@ -314,8 +367,9 @@ impl App {
                         presets if !presets.is_empty() => {
                             let new_items = self.current_preset.clone().unwrap().into_items();
 
+                            warn!("new_items: {:?}", &new_items);
                             for item in new_items {
-                                self.items.items.push((item, State::ChangeFieldName));
+                                self.items.items.push(item);
                             }
                         }
                         _ => {}
@@ -385,5 +439,29 @@ impl PresetCreationHelper {
     pub fn reset(&mut self) {
         self.windows.clear();
         self.max_windows = 0;
+    }
+}
+
+impl PresetValue {
+    pub fn update_value(&mut self, new_val: &str) -> Result<(), ()> {
+        match self {
+            PresetValue::Name(name) => {
+                *name = new_val.to_string();
+            }
+
+            PresetValue::Tabs(tabs) => {
+                let Ok(new_tabs) = new_val.parse::<u8>() else {error!("PresetValue, update_value error parsing tabs: CANNOT PARSE GIVEN STRING."); panic!();};
+                *tabs = new_tabs;
+            }
+            PresetValue::Windows(_, windows) => {
+                let Ok(new_windows) = new_val.parse::<u8>() else {error!("PresetValue update_value error parsing windows: CANNOT PARSE GIVEN STRING."); panic!();};
+                *windows = new_windows;
+            }
+            PresetValue::Args(_, arg) => {
+                *arg = new_val.to_string();
+            }
+        }
+
+        Ok(())
     }
 }

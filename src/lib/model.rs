@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{any::Any, collections::VecDeque};
 
 use serde::{Deserialize, Serialize};
 use tui::{style::Color, widgets::ListState};
@@ -23,6 +23,19 @@ pub enum WriteType {
     Create,
     Edit,
 }
+#[derive(Debug, Clone)]
+pub enum PresetValue {
+    Name(String),
+    Tabs(u8),
+    Windows(usize, u8),
+    Args(usize, String),
+}
+#[derive(Debug, Clone)]
+pub struct Item {
+    pub(super) name: String,
+    pub(super) leading_state: State,
+    pub(super) preset_value: Option<PresetValue>,
+}
 pub struct Popup {
     pub(super) active: bool,
     pub(super) message: String,
@@ -31,7 +44,7 @@ pub struct Popup {
 
 pub struct StatefulList {
     pub(super) list_state: ListState,
-    pub(super) items: Vec<(String, State)>,
+    pub(super) items: Vec<Item>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppConfig {
