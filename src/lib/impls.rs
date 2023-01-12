@@ -27,16 +27,16 @@ impl State {
             State::Settings => Some(vec![
                 Item::new(
                     format!(
-                        "Duplicate tab hotkey: {}",
-                        app_config.unwrap().settings.duplicate_tab
+                        "Terminal path: {}",
+                        app_config.unwrap().settings.terminal_path
                     ),
                     State::ChangeFieldName,
                     None,
                 ),
                 Item::new(
                     format!(
-                        "Duplicate pane hotkey: {}",
-                        app_config.unwrap().settings.duplicate_pane
+                        "Shell name: {}",
+                        app_config.unwrap().settings.shell_name
                     ),
                     State::ChangeFieldName,
                     None,
@@ -49,7 +49,7 @@ impl State {
     fn create_prompts(&self) -> Option<Vec<String>> {
         match self {
             State::CreatePreset => Some(vec![
-                "Enter your new preset name:".to_string(),
+                "Enter preset name:".to_string(),
                 "Enter tabs amount (number only):".to_string(),
             ]),
             _ => None,
@@ -119,6 +119,14 @@ impl StatefulList {
             None => None,
         }
     }
+
+    pub fn delete_selected_item(&mut self) -> Result<(), String> {
+        match self.list_state.selected() {
+            Some(i) => {self.items.remove(i);},
+            None => return Err(String::from("Cannot delete item: ITEM WITH THIS INDEX WAS NOT FOUND.")),
+        }
+        Ok(())
+    }
 }
 
 impl Preset {
@@ -186,7 +194,7 @@ impl Preset {
 
                 let mut args_place_index = (args_before + *old_windows) as usize;
 
-                //
+          
                 if new_windows < *old_windows {
                     for _n in 0..*old_windows - new_windows {
                         self.args.remove(args_place_index - 1);
@@ -202,7 +210,7 @@ impl Preset {
             }
 
             PresetValue::Args(index, new_name) => {
-                let Some(current_arg) = self.args.get_mut(index as usize) else {
+                let Some(current_arg) = self.args.get_mut(index as usize) else {                  
                     return Err(String::from("Cannot find windows with current index."));
                 };
                 *current_arg = new_name;
@@ -232,7 +240,7 @@ impl Preset {
         for (tab_index, windows_amount) in self.windows.iter().enumerate() {
             let window = Item::new(
                 format!(
-                    "Tab (#{}), windows:{}",
+                    "Tab (#{}), windows: {}",
                     tab_index + 1,
                     &windows_amount.to_string()
                 ),
@@ -245,6 +253,7 @@ impl Preset {
         let mut window_index = 0;
         let mut arg_count = 0;
         for (arg_index, arg) in self.args.iter().enumerate() {
+           
             let Some(current_window) = self.windows.get(window_index) else {
                 error!("Cannot create items from preset windows: INDEX OUT OF BOUNDS.\nWindows: {:?} \nIndex: {}", self.windows, window_index);
                 panic!();
@@ -253,9 +262,10 @@ impl Preset {
             if arg_count >= *current_window {
                 if window_index + 1 < self.windows.len() {
                     window_index += 1;
+                    arg_count = 0;
                 }
             }
-
+            warn!("w inedx: {}, arg count {}", window_index, arg_count);
             let arg = Item::new(
                 format!(
                     "Tab (#{}), window (#{}), Arg: {}",
@@ -319,7 +329,7 @@ impl App {
         app_config: Option<&AppConfig>,
     ) {
         if new_state == self.state {
-            return ();
+            return;
         }
 
         self.previous_state = match new_state {
@@ -344,7 +354,7 @@ impl App {
             }
             State::ChoosePreset => {
                 self.items.items.clear();
-                let Some(config) = app_config else {return ();};
+                let Some(config) = app_config else {return;};
 
                 match &config.presets {
                     presets if !presets.is_empty() => {
@@ -362,18 +372,14 @@ impl App {
             State::EditPreset => {
                 self.input_mode = InputMode::Normal;
                 self.items.items.clear();
-                if let Some(config) = app_config {
-                    match &config.presets {
-                        presets if !presets.is_empty() => {
-                            let new_items = self.current_preset.clone().unwrap().into_items();
-
-                            warn!("new_items: {:?}", &new_items);
-                            for item in new_items {
-                                self.items.items.push(item);
-                            }
+                match app_config {
+                    Some(config) if !config.presets.is_empty() => {
+                        let new_items = self.current_preset.clone().unwrap().into_items();
+                        for item in new_items {
+                            self.items.items.push(item);
                         }
-                        _ => {}
                     }
+                    _ => {}
                 }
             }
             State::ChangeFieldName => {
@@ -400,12 +406,22 @@ impl App {
 }
 
 impl AppConfig {
-    pub fn find_preset_by_name(&mut self, name: &str) -> Option<&mut Preset> {
+    pub fn get_mut_preset_by_name(&mut self, name: &str) -> Option<&mut Preset> {
         if let Some(found) = self.presets.iter_mut().find(|preset| preset.name == name) {
             Some(found)
         } else {
             None
         }
+    }
+
+    pub fn delete_preset_by_name(&mut self, name: &str) -> Result<(), String> {
+        if let Some(index) = self.presets.iter().position(|pr| pr.name == name) {
+            self.presets.remove(index);
+        } else {
+            return Err(String::from("Cannot delete preset: PRESET WITH GIVEN NAME WAS NOT FOUND."));
+        }
+
+        Ok(())
     }
 }
 
@@ -413,10 +429,10 @@ impl Settings {
     pub fn change_name(&mut self, index: usize, new_name: &str) -> Result<(), String> {
         match index {
             0 => {
-                self.duplicate_tab = new_name.to_string();
+                self.terminal_path = new_name.to_string();
             }
             1 => {
-                self.duplicate_pane = new_name.to_string();
+                self.shell_name = new_name.to_string();
             }
             _ => {
                 return Err(String::from(
@@ -443,18 +459,20 @@ impl PresetCreationHelper {
 }
 
 impl PresetValue {
-    pub fn update_value(&mut self, new_val: &str) -> Result<(), ()> {
+    pub fn update_value(&mut self, new_val: &str) -> Result<(), String> {
         match self {
             PresetValue::Name(name) => {
                 *name = new_val.to_string();
             }
 
             PresetValue::Tabs(tabs) => {
-                let Ok(new_tabs) = new_val.parse::<u8>() else {error!("PresetValue, update_value error parsing tabs: CANNOT PARSE GIVEN STRING."); panic!();};
+                let Ok(new_tabs) = new_val.parse::<u8>() else {
+                    return Err(String::from("PresetValue, update_value error parsing tabs: CANNOT PARSE GIVEN STRING."));};
                 *tabs = new_tabs;
             }
             PresetValue::Windows(_, windows) => {
-                let Ok(new_windows) = new_val.parse::<u8>() else {error!("PresetValue update_value error parsing windows: CANNOT PARSE GIVEN STRING."); panic!();};
+                let Ok(new_windows) = new_val.parse::<u8>() else {
+                    return Err(String::from("PresetValue update_value error parsing windows: CANNOT PARSE GIVEN STRING."));};
                 *windows = new_windows;
             }
             PresetValue::Args(_, arg) => {
@@ -465,3 +483,6 @@ impl PresetValue {
         Ok(())
     }
 }
+
+
+

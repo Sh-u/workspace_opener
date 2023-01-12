@@ -78,18 +78,23 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     match app.state {
         State::EditPreset | State::ChangeFieldName => {
             main_block_style = main_block_style.fg(edit_color);
-            controls.push(Span::raw(", "));
-            controls.push(Span::styled(
-                "EDIT MODE ACTIVATED",
-                Style::default().add_modifier(Modifier::BOLD).fg(edit_color),
-            ));
+            // controls.push(Span::raw(", "));
+            // controls.push(Span::styled(
+            //     "EDIT MODE ACTIVATED",
+            //     Style::default().add_modifier(Modifier::BOLD).fg(edit_color),
+            // ));
         }
         State::ChoosePreset => {
             controls.push(Span::styled(
                 ", E",
                 Style::default().add_modifier(Modifier::BOLD),
             ));
-            controls.push(Span::raw(" to edit preset"));
+            controls.push(Span::raw(" to edit"));
+            controls.push(Span::styled(
+                ", DEL",
+                Style::default().add_modifier(Modifier::BOLD),
+            ));
+            controls.push(Span::raw(" to delete"));
         }
         _ => {}
     }
@@ -192,17 +197,18 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_widget(controls, chunks[0]);
 }
 
-fn write_preset_to_file(
+pub fn write_preset_to_file(
     app_config: &mut AppConfig,
     app_messages: &Vec<String>,
     write_type: WriteType,
+    config_path: &str,
 ) -> Result<(), ()> {
     if let WriteType::Create = write_type {
         let new_preset = Preset::new(app_messages);
         app_config.presets.push(new_preset);
     }
 
-    let config_file = File::create(CONFIG);
+    let config_file = File::create(config_path);
 
     if config_file.is_err() {
         error!("Error while reading the config file.");
@@ -218,7 +224,7 @@ fn write_preset_to_file(
 
 fn run_config(selected_name: &str, app_config: &mut AppConfig) {
     let Some(preset) = app_config
-        .find_preset_by_name(selected_name)
+        .get_mut_preset_by_name(selected_name)
         .map(|val| &*val) else {
             error!("Cannot find the matching preset name while trying to run the config.");
             panic!();
@@ -267,7 +273,10 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         let msg_length = app.messages.len();
 
                         if msg_length == 1 {
-                            let Ok(tabs_amount) = app.input.as_str().trim().parse::<u8>() else {continue;};
+                            let Ok(tabs_amount) = app.input.parse::<u8>() else {continue;};
+                            if tabs_amount < 1 {
+                                continue;
+                            };
 
                             for n in 1..=tabs_amount {
                                 app.prompts
@@ -276,6 +285,9 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                             pch.max_windows = tabs_amount as usize;
                         } else if msg_length > 1 && pch.windows.len() < pch.max_windows {
                             let Ok(input) = app.input.parse::<u8>() else {continue;};
+                            if input < 1 {
+                                continue;
+                            };
                             pch.windows.push_back(input);
 
                             let Some(&windows_back) = pch.windows.back() else {continue;};
@@ -297,6 +309,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                                 &mut app_config,
                                 &app.messages,
                                 WriteType::Create,
+                                CONFIG,
                             )
                             .is_ok()
                             {
@@ -330,7 +343,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                             continue;
                         };
 
-                        let Some(preset) = app_config.find_preset_by_name(&item.name) else {continue;};
+                        let Some(preset) = app_config.get_mut_preset_by_name(&item.name) else {continue;};
 
                         app.current_preset = Some(preset.clone());
                         app.handle_state_change(("", State::EditPreset), Some(&app_config));
@@ -353,6 +366,27 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
 
                         app.handle_state_change(("", app.previous_state), Some(&app_config));
                     }
+                    KeyCode::Delete => {
+                        let Some(item) = app.items.get_selected_item() else {continue;};
+                        if let Err(err) = app_config.delete_preset_by_name(&item.name) {
+                            error!("{}", err);
+                            continue;
+                        }
+                        if let Err(err) = app.items.delete_selected_item() {
+                            error!("{}", err);
+                            continue;
+                        }
+                        write_preset_to_file(
+                            &mut app_config,
+                            &app.messages,
+                            WriteType::Edit,
+                            CONFIG,
+                        )
+                        .expect("Error when writing to a file of a deleted preset.");
+                        if app.items.items.is_empty() {
+                            app.handle_state_change(("", app.previous_state), Some(&app_config));
+                        }
+                    }
                     _ => {}
                 },
                 InputMode::Edit => match key.code {
@@ -360,16 +394,19 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         let Some(item) = app.items.get_selected_item() else {continue;};
 
                         if let Some(pr) = &app.current_preset {
-                            let Some(pr) = app_config.find_preset_by_name(&pr.name) else{continue;};
+                            let Some(pr) = app_config.get_mut_preset_by_name(&pr.name) else{continue;};
                             let Some(mut pr_value) = item.preset_value else {continue;};
 
-                            pr_value.update_value(&app.input).unwrap();
+                            if let Err(err) = pr_value.update_value(&app.input) {
+                                error!("{}", err);
+                                continue;
+                            }
 
                             if let Err(err) = pr.change_field_value(pr_value) {
                                 error!("{}", err);
                                 continue;
                             }
-                            warn!("success?");
+
                             app.current_preset = Some(pr.clone());
                         } else {
                             let Some(index) = app.items.get_selected_item_index() else {continue;};
@@ -379,8 +416,13 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                             }
                         }
 
-                        write_preset_to_file(&mut app_config, &app.messages, WriteType::Edit)
-                            .expect("Error when writing to a file of an edited preset.");
+                        write_preset_to_file(
+                            &mut app_config,
+                            &app.messages,
+                            WriteType::Edit,
+                            CONFIG,
+                        )
+                        .expect("Error when writing to a file of an edited preset.");
 
                         app.handle_state_change(("", app.previous_state), Some(&app_config));
                     }

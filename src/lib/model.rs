@@ -46,19 +46,18 @@ pub struct StatefulList {
     pub(super) list_state: ListState,
     pub(super) items: Vec<Item>,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub struct AppConfig {
     pub(super) presets: Vec<Preset>,
     pub(super) settings: Settings,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Settings {
-    // pub(super) terminal_path: String,
-    pub(super) duplicate_tab: String,
-    pub(super) duplicate_pane: String,
+    pub(super) terminal_path: String,
+    pub(super) shell_name: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Preset {
     pub(super) name: String,
     pub(super) tabs: u8,
