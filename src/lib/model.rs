@@ -23,14 +23,14 @@ pub enum WriteType {
     Create,
     Edit,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum PresetValue {
     Name(String),
     Tabs(u8),
     Windows(usize, u8),
     Args(usize, String),
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Item {
     pub(super) name: String,
     pub(super) leading_state: State,

@@ -223,6 +223,9 @@ pub fn write_preset_to_file(
 }
 
 fn run_config(selected_name: &str, app_config: &mut AppConfig) {
+    let shell = app_config.settings.shell_name.to_string();
+    let command_runner = "powershell.exe";
+
     let Some(preset) = app_config
         .get_mut_preset_by_name(selected_name)
         .map(|val| &*val) else {
@@ -230,10 +233,38 @@ fn run_config(selected_name: &str, app_config: &mut AppConfig) {
             panic!();
         };
 
-    let arg = String::new();
+    let prefix = match command_runner {
+        "powershell.exe" => "`",
+        _ => "",
+    };
 
-    let mut process = std::process::Command::new("powershell.exe")
-        .arg("wt.exe split-pane -p \"Command Prompt\"")
+    let mut windows = String::new();
+
+    let mut left_right = false;
+
+    for n in 1..*preset.windows.get(0).unwrap() {
+        let dir = match left_right {
+            false => "left",
+            true => "right",
+        };
+        warn!("n % 2: {}", n % 2);
+        let mv_focus = match n % 2 {
+            0 => {
+                left_right = !left_right;
+                format!("mf {} {};", dir, prefix)
+            }
+            _ => "".to_string(),
+        };
+
+        windows.push_str(&mv_focus);
+        let temp = format!("split-pane -p \"{}\" {}; ", shell, prefix);
+
+        windows.push_str(&temp);
+    }
+    let arg = format!("wt.exe -p \"{}\" `; {}", shell, windows);
+    warn!("{}", &windows);
+    let mut process = std::process::Command::new(command_runner)
+        .arg(arg)
         .spawn()
         .expect("Failed to launch the target process.");
 }

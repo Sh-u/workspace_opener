@@ -168,12 +168,12 @@ impl Preset {
                 let old_tabs = self.tabs;
 
                 if new_tabs < self.tabs {
-                    for _n in 0..*self.windows.last().unwrap() {
-                        self.args.pop();
-                    }
-
+             
                     for _n in 0..old_tabs - new_tabs {
-                        self.windows.pop();
+                        let Some(deleted_window) = self.windows.pop() else {return Err(String::from("Trying to delete window from an empty collection"))};
+                        for _n in 0..deleted_window {
+                            self.args.pop();
+                        }
                     }
                 } else {
                     for _n in 0..new_tabs - old_tabs {
@@ -374,10 +374,10 @@ impl App {
                 self.items.items.clear();
                 match app_config {
                     Some(config) if !config.presets.is_empty() => {
-                        let new_items = self.current_preset.clone().unwrap().into_items();
-                        for item in new_items {
-                            self.items.items.push(item);
-                        }
+                        let mut new_items = self.current_preset.clone().unwrap().into_items();
+                        
+                        self.items.items.append(&mut new_items);
+                        
                     }
                     _ => {}
                 }

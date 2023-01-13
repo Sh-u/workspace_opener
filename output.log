@@ -1,2 +1,4 @@
-18:49:13 [WARN] w inedx: 0, arg count 0
-18:49:13 [WARN] w inedx: 0, arg count 1
+22:18:46 [WARN] n % 2: 1
+22:18:46 [WARN] n % 2: 0
+22:18:46 [WARN] n % 2: 1
+22:18:46 [WARN] split-pane -p "Ubuntu" `; mf left `;split-pane -p "Ubuntu" `; split-pane -p "Ubuntu" `; 
