@@ -237,30 +237,27 @@ fn run_config(selected_name: &str, app_config: &mut AppConfig) {
         "powershell.exe" => "`",
         _ => "",
     };
+    let w_len = preset.windows.len();
+    let mut windows: Vec<String> = Vec::with_capacity(w_len);
 
-    let mut windows = String::new();
-
-    let mut left_right = false;
-
-    for n in 1..*preset.windows.get(0).unwrap() {
-        let dir = match left_right {
-            false => "left",
-            true => "right",
-        };
-        warn!("n % 2: {}", n % 2);
-        let mv_focus = match n % 2 {
-            0 => {
-                left_right = !left_right;
-                format!("mf {} {};", dir, prefix)
-            }
-            _ => "".to_string(),
-        };
-
-        windows.push_str(&mv_focus);
-        let temp = format!("split-pane -p \"{}\" {}; ", shell, prefix);
-
-        windows.push_str(&temp);
+    for window in &preset.windows {
+        match window {
+            2 => windows.push(format!("sp -D {} ;", prefix)),
+            3 => windows.push(format!("sp -D -s .66 {}; sp -D -s .5 {};", prefix, prefix)),
+            4 => windows.push(format!(
+                "sp -D {}; sp -D {}; mf left {}; sp -D {};",
+                prefix, prefix, prefix, prefix
+            )),
+            _ => {}
+        }
     }
+
+    for s in &mut windows[0..w_len - 1].iter_mut() {
+        s.push_str(&format!(" nt -p \"{}\"{}; ", shell, prefix));
+    }
+
+    let windows = windows.into_iter().collect::<String>();
+
     let arg = format!("wt.exe -p \"{}\" `; {}", shell, windows);
     warn!("{}", &windows);
     let mut process = std::process::Command::new(command_runner)
