@@ -4,6 +4,7 @@ use log::*;
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
+    process::Stdio,
 };
 use tui::{
     backend::Backend,
@@ -16,6 +17,7 @@ use tui::{
 const CONFIG: &'static str = "config.json";
 
 const PATH: &str = "../../../../mnt/c/Users/kacperek/AppData/Local/Microsoft/WindowsApps/wt.exe";
+const PWSH_PATH: &str = "../../../../mnt/c/Program Files/PowerShell/7/pwsh.exe";
 // const PATH: &'static str = "../../../../bin/fish";
 
 fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
@@ -222,9 +224,43 @@ pub fn write_preset_to_file(
     Ok(())
 }
 
+enum ShellType {
+    Powershell,
+    Cmd,
+    Bash,
+    Zsh,
+}
+
+impl ShellType {
+    fn as_string(&self) -> String {
+        match self {
+            ShellType::Powershell => "powershell".to_string(),
+            ShellType::Cmd => "cmd".to_string(),
+            ShellType::Bash => "bash".to_string(),
+            ShellType::Zsh => "zsh".to_string(),
+        }
+    }
+}
+
 fn run_config(selected_name: &str, app_config: &mut AppConfig) {
-    let shell = app_config.settings.shell_name.to_string();
-    let command_runner = "powershell.exe";
+    let wt_profile = app_config.settings.shell_name.to_string();
+
+    let input_shell = ShellType::Zsh;
+
+    let shell_name = input_shell.as_string();
+
+    let commands = format!("ls\\; exec {}", shell_name);
+
+    let wsl: String = format!("wsl ~ -e {} -c \"{}\"", shell_name, commands);
+
+    let command_runner = match input_shell {
+        ShellType::Powershell => "powershell -NoExit -Command",
+        _ => "cmd /k",
+    };
+
+    let command = format!("{} {}", command_runner, wsl);
+
+    let init_shell = "powershell.exe";
 
     let Some(preset) = app_config
         .get_mut_preset_by_name(selected_name)
@@ -233,35 +269,51 @@ fn run_config(selected_name: &str, app_config: &mut AppConfig) {
             panic!();
         };
 
-    let prefix = match command_runner {
+    let escape_char = match init_shell {
         "powershell.exe" => "`",
-        _ => "",
+        _args => "",
     };
+    let args = preset.args.clone();
+
     let w_len = preset.windows.len();
     let mut windows: Vec<String> = Vec::with_capacity(w_len);
 
     for window in &preset.windows {
         match window {
-            2 => windows.push(format!("sp -D {} ;", prefix)),
-            3 => windows.push(format!("sp -D -s .66 {}; sp -D -s .5 {};", prefix, prefix)),
+            2 => windows.push(format!("sp -D {};", escape_char)),
+            3 => windows.push(format!(
+                "sp -D -s .66 {}; sp -D -s .5 {};",
+                escape_char, escape_char
+            )),
             4 => windows.push(format!(
-                "sp -D {}; sp -D {}; mf left {}; sp -D {};",
-                prefix, prefix, prefix, prefix
+                "sp -p \"{}\" {} {}; sp -p \"{}\" {} {}; mf left {}; sp -p \"{}\" {} {};",
+                wt_profile,
+                command,
+                escape_char,
+                wt_profile,
+                command,
+                escape_char,
+                escape_char,
+                wt_profile,
+                command,
+                escape_char
             )),
             _ => {}
         }
     }
 
     for s in &mut windows[0..w_len - 1].iter_mut() {
-        s.push_str(&format!(" nt -p \"{}\"{}; ", shell, prefix));
+        s.push_str(&format!(" nt -p \"{}\"{}; ", wt_profile, escape_char));
     }
 
     let windows = windows.into_iter().collect::<String>();
 
-    let arg = format!("wt.exe -p \"{}\" `; {}", shell, windows);
+    let arg = format!("wt.exe -p \"{}\" {}; {}", wt_profile, escape_char, windows);
     warn!("{}", &windows);
-    let mut process = std::process::Command::new(command_runner)
+
+    let mut process = std::process::Command::new(PATH)
         .arg(arg)
+        .stdin(Stdio::piped())
         .spawn()
         .expect("Failed to launch the target process.");
 }
