@@ -1,1 +1,6 @@
-{"presets":[{"name":"dupa","tabs":2,"windows":[2,1],"args":["w1","w1 2","w2","w3","w4"]},{"name":"dudu","tabs":2,"windows":[4,3],"args":["df","","","","fsdfds","",""]}],"settings":{"terminal_path":"","shell_name":"Ubuntu"}}
+{
+  "presets": [
+    { "name": "dudud", "tabs": 1, "windows": [2], "args": ["ls", "cd .."] }
+  ],
+  "settings": { "terminal_path": "", "shell_name": "Ubuntu" }
+}

@@ -1,3 +1,5 @@
+use crate::lib::model::ShellType;
+
 use super::model::{App, AppConfig, InputMode, Preset, PresetCreationHelper, State, WriteType};
 use crossterm::event::{self, Event, KeyCode};
 use log::*;
@@ -224,44 +226,8 @@ pub fn write_preset_to_file(
     Ok(())
 }
 
-enum ShellType {
-    Powershell,
-    Cmd,
-    Bash,
-    Zsh,
-}
-
-impl ShellType {
-    fn as_string(&self) -> String {
-        match self {
-            ShellType::Powershell => "powershell".to_string(),
-            ShellType::Cmd => "cmd".to_string(),
-            ShellType::Bash => "bash".to_string(),
-            ShellType::Zsh => "zsh".to_string(),
-        }
-    }
-}
-
 fn run_config(selected_name: &str, app_config: &mut AppConfig) {
     let wt_profile = app_config.settings.shell_name.to_string();
-
-    let input_shell = ShellType::Zsh;
-
-    let shell_name = input_shell.as_string();
-
-    let commands = format!("ls\\; exec {}", shell_name);
-
-    let wsl: String = format!("wsl ~ -e {} -c \"{}\"", shell_name, commands);
-
-    let command_runner = match input_shell {
-        ShellType::Powershell => "powershell -NoExit -Command",
-        _ => "cmd /k",
-    };
-
-    let command = format!("{} {}", command_runner, wsl);
-
-    let init_shell = "powershell.exe";
-
     let Some(preset) = app_config
         .get_mut_preset_by_name(selected_name)
         .map(|val| &*val) else {
@@ -269,34 +235,59 @@ fn run_config(selected_name: &str, app_config: &mut AppConfig) {
             panic!();
         };
 
+    let input_shell = ShellType::Powershell;
+
+    let init_shell = "powershell.exe";
+
+    let shell_name = input_shell.as_string();
+
+    let command_runner = match input_shell {
+        ShellType::Cmd => "cmd /k ",
+        ShellType::Powershell => "powershell -NoExit -Command ",
+        ShellType::Bash => "wsl ~ -e bash -c ",
+        ShellType::Zsh => "wsl ~ -e zsh -c ",
+    };
+
+    let mut args = preset.args.clone();
+    for arg in args.iter_mut() {
+        let mut temp: String = arg.split(",").map(|s| format!("{}\\; ", s)).collect();
+        if input_shell == ShellType::Zsh || input_shell == ShellType::Bash {
+            temp.push_str(&format!("exec {}\\;", shell_name));
+        }
+        *arg = format!("{} '{}'", command_runner, temp);
+    }
+
     let escape_char = match init_shell {
         "powershell.exe" => "`",
         _args => "",
     };
-    let args = preset.args.clone();
 
     let w_len = preset.windows.len();
+
     let mut windows: Vec<String> = Vec::with_capacity(w_len);
 
     for window in &preset.windows {
         match window {
-            2 => windows.push(format!("sp -D {};", escape_char)),
+            2 => windows.push(format!("sp -p \"{}\" {}", wt_profile, args.get(1).unwrap())),
             3 => windows.push(format!(
-                "sp -D -s .66 {}; sp -D -s .5 {};",
-                escape_char, escape_char
+                "sp -p \"{}\" -s .66 {} {}; sp -p \"{}\" -s .5 {}",
+                wt_profile,
+                args.get(1).unwrap(),
+                escape_char,
+                wt_profile,
+                args.get(2).unwrap()
             )),
             4 => windows.push(format!(
-                "sp -p \"{}\" {} {}; sp -p \"{}\" {} {}; mf left {}; sp -p \"{}\" {} {};",
+                "sp -p \"{}\" {} {}; sp -p \"{}\" {} {}; mf left {}; sp -p \"{}\" {}",
                 wt_profile,
-                command,
+                args.get(1).unwrap(),
                 escape_char,
                 wt_profile,
-                command,
+                args.get(2).unwrap(),
                 escape_char,
                 escape_char,
                 wt_profile,
-                command,
-                escape_char
+                args.get(3).unwrap(),
             )),
             _ => {}
         }
@@ -308,12 +299,17 @@ fn run_config(selected_name: &str, app_config: &mut AppConfig) {
 
     let windows = windows.into_iter().collect::<String>();
 
-    let arg = format!("wt.exe -p \"{}\" {}; {}", wt_profile, escape_char, windows);
-    warn!("{}", &windows);
+    let arg = format!(
+        "wt.exe -p \"{}\" {} {}; {}",
+        wt_profile,
+        args.get(0).unwrap(),
+        escape_char,
+        windows
+    );
+    warn!("{}", &arg);
 
-    let mut process = std::process::Command::new(PATH)
+    let mut _process = std::process::Command::new(init_shell)
         .arg(arg)
-        .stdin(Stdio::piped())
         .spawn()
         .expect("Failed to launch the target process.");
 }

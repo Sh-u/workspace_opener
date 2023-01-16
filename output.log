@@ -1,1 +1,1 @@
-22:24:13 [WARN] sp -p "Ubuntu" cmd /k wsl ~ -e zsh -c "ls\; exec zsh" `; sp -p "Ubuntu" cmd /k wsl ~ -e zsh -c "ls\; exec zsh" `; mf left `; sp -p "Ubuntu" cmd /k wsl ~ -e zsh -c "ls\; exec zsh" `; nt -p "Ubuntu"`; sp -D -s .66 `; sp -D -s .5 `;
+22:13:21 [WARN] wt.exe -p "Powershell" powershell -NoExit -Command  'ls\; ' `; sp -p "Powershell" powershell -NoExit -Command  'cd ..\; '

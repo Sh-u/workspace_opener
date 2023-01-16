@@ -1,6 +1,6 @@
 use super::model::{
     App, AppConfig, InputMode, Item, Popup, Preset, PresetCreationHelper, PresetValue, Settings,
-    State, StatefulList,
+    State, StatefulList, ShellType,
 };
 use log::{error, warn};
 use std::collections::VecDeque;
@@ -484,5 +484,13 @@ impl PresetValue {
     }
 }
 
-
-
+impl ShellType {
+    pub fn as_string(&self) -> String {
+        match self {
+            ShellType::Powershell => "powershell".to_string(),
+            ShellType::Cmd => "cmd".to_string(),
+            ShellType::Bash => "bash".to_string(),
+            ShellType::Zsh => "zsh".to_string(),
+        }
+    }
+}

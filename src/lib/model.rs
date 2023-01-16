@@ -30,6 +30,14 @@ pub enum PresetValue {
     Windows(usize, u8),
     Args(usize, String),
 }
+#[derive(PartialEq)]
+pub enum ShellType {
+    Powershell,
+    Cmd,
+    Bash,
+    Zsh,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Item {
     pub(super) name: String,
