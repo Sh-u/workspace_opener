@@ -1,12 +1,10 @@
-use crate::lib::model::ShellType;
-
 use super::model::{App, AppConfig, InputMode, Preset, PresetCreationHelper, State, WriteType};
+use crate::lib::model::ShellType;
 use crossterm::event::{self, Event, KeyCode};
 use log::*;
 use std::{
     fs::{self, File},
     io::{BufWriter, Write},
-    process::Stdio,
 };
 use tui::{
     backend::Backend,
@@ -16,37 +14,8 @@ use tui::{
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame, Terminal,
 };
+
 const CONFIG: &'static str = "config.json";
-
-const PATH: &str = "../../../../mnt/c/Users/kacperek/AppData/Local/Microsoft/WindowsApps/wt.exe";
-const PWSH_PATH: &str = "../../../../mnt/c/Program Files/PowerShell/7/pwsh.exe";
-// const PATH: &'static str = "../../../../bin/fish";
-
-fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
-    let layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(
-            [
-                Constraint::Percentage((100 - percent_y) / 2),
-                Constraint::Percentage(percent_y),
-                Constraint::Percentage((100 - percent_y) / 2),
-            ]
-            .as_ref(),
-        )
-        .split(rect);
-
-    Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Percentage((100 - percent_x) / 2),
-                Constraint::Percentage(percent_x),
-                Constraint::Percentage((100 - percent_x) / 2),
-            ]
-            .as_ref(),
-        )
-        .split(layout[1])[1]
-}
 
 fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     let size = f.size();
@@ -201,119 +170,6 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_widget(controls, chunks[0]);
 }
 
-pub fn write_preset_to_file(
-    app_config: &mut AppConfig,
-    app_messages: &Vec<String>,
-    write_type: WriteType,
-    config_path: &str,
-) -> Result<(), ()> {
-    if let WriteType::Create = write_type {
-        let new_preset = Preset::new(app_messages);
-        app_config.presets.push(new_preset);
-    }
-
-    let config_file = File::create(config_path);
-
-    if config_file.is_err() {
-        error!("Error while reading the config file.");
-        panic!();
-    }
-
-    let mut writer = BufWriter::new(config_file.unwrap());
-    serde_json::to_writer(&mut writer, &app_config).unwrap();
-    writer.flush().unwrap();
-
-    Ok(())
-}
-
-fn run_config(selected_name: &str, app_config: &mut AppConfig) {
-    let wt_profile = app_config.settings.shell_name.to_string();
-    let Some(preset) = app_config
-        .get_mut_preset_by_name(selected_name)
-        .map(|val| &*val) else {
-            error!("Cannot find the matching preset name while trying to run the config.");
-            panic!();
-        };
-
-    let input_shell = ShellType::Powershell;
-
-    let init_shell = "powershell.exe";
-
-    let shell_name = input_shell.as_string();
-
-    let command_runner = match input_shell {
-        ShellType::Cmd => "cmd /k ",
-        ShellType::Powershell => "powershell -NoExit -Command ",
-        ShellType::Bash => "wsl ~ -e bash -c ",
-        ShellType::Zsh => "wsl ~ -e zsh -c ",
-    };
-
-    let mut args = preset.args.clone();
-    for arg in args.iter_mut() {
-        let mut temp: String = arg.split(",").map(|s| format!("{}\\; ", s)).collect();
-        if input_shell == ShellType::Zsh || input_shell == ShellType::Bash {
-            temp.push_str(&format!("exec {}\\;", shell_name));
-        }
-        *arg = format!("{} '{}'", command_runner, temp);
-    }
-
-    let escape_char = match init_shell {
-        "powershell.exe" => "`",
-        _args => "",
-    };
-
-    let w_len = preset.windows.len();
-
-    let mut windows: Vec<String> = Vec::with_capacity(w_len);
-
-    for window in &preset.windows {
-        match window {
-            2 => windows.push(format!("sp -p \"{}\" {}", wt_profile, args.get(1).unwrap())),
-            3 => windows.push(format!(
-                "sp -p \"{}\" -s .66 {} {}; sp -p \"{}\" -s .5 {}",
-                wt_profile,
-                args.get(1).unwrap(),
-                escape_char,
-                wt_profile,
-                args.get(2).unwrap()
-            )),
-            4 => windows.push(format!(
-                "sp -p \"{}\" {} {}; sp -p \"{}\" {} {}; mf left {}; sp -p \"{}\" {}",
-                wt_profile,
-                args.get(1).unwrap(),
-                escape_char,
-                wt_profile,
-                args.get(2).unwrap(),
-                escape_char,
-                escape_char,
-                wt_profile,
-                args.get(3).unwrap(),
-            )),
-            _ => {}
-        }
-    }
-
-    for s in &mut windows[0..w_len - 1].iter_mut() {
-        s.push_str(&format!(" nt -p \"{}\"{}; ", wt_profile, escape_char));
-    }
-
-    let windows = windows.into_iter().collect::<String>();
-
-    let arg = format!(
-        "wt.exe -p \"{}\" {} {}; {}",
-        wt_profile,
-        args.get(0).unwrap(),
-        escape_char,
-        windows
-    );
-    warn!("{}", &arg);
-
-    let mut _process = std::process::Command::new(init_shell)
-        .arg(arg)
-        .spawn()
-        .expect("Failed to launch the target process.");
-}
-
 pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
     let cfg_file_string = fs::read_to_string(CONFIG).unwrap();
     let mut app_config: AppConfig = serde_json::from_str(&cfg_file_string).unwrap();
@@ -350,18 +206,20 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
 
                         if msg_length == 1 {
                             let Ok(tabs_amount) = app.input.parse::<u8>() else {continue;};
-                            if tabs_amount < 1 {
+                            if tabs_amount < 1 || tabs_amount > 10 {
                                 continue;
                             };
 
                             for n in 1..=tabs_amount {
-                                app.prompts
-                                    .push(format!("Enter windows amount for tab number {}: ", n));
+                                app.prompts.push(format!(
+                                    "Enter windows amount (1-4) for tab number {}: ",
+                                    n
+                                ));
                             }
                             pch.max_windows = tabs_amount as usize;
                         } else if msg_length > 1 && pch.windows.len() < pch.max_windows {
                             let Ok(input) = app.input.parse::<u8>() else {continue;};
-                            if input < 1 {
+                            if input < 1 || input > 4 {
                                 continue;
                             };
                             pch.windows.push_back(input);
@@ -516,4 +374,149 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
             }
         }
     }
+}
+
+fn run_config(selected_name: &str, app_config: &AppConfig) {
+    let wt_profile = &app_config.settings.wt_profile;
+    let wt_profile = match wt_profile.is_empty() {
+        false => format!("-p \"{}\"", wt_profile),
+        _ => wt_profile.to_string(),
+    };
+
+    let init_shell = &app_config.settings.init_shell;
+    let target_shell = &app_config.settings.target_shell;
+
+    let Some(preset) = app_config.get_preset_by_name(selected_name) else {
+            error!("Cannot find the matching preset name while trying to run the config.");
+            panic!();
+        };
+
+    let mut init_shell_name = init_shell.as_string();
+
+    let command_runner = match target_shell {
+        ShellType::Cmd => "cmd /k ",
+        ShellType::Powershell => "powershell -NoExit -Command ",
+        ShellType::Bash => "wsl ~ -e bash -c ",
+        ShellType::Zsh => "wsl ~ -e zsh -c ",
+    };
+
+    let mut args = preset.args.clone();
+
+    for arg in args.iter_mut() {
+        let mut temp: String = arg.split(",").map(|s| format!("{}\\; ", s)).collect();
+        if *target_shell == ShellType::Zsh || *target_shell == ShellType::Bash {
+            temp.push_str(&format!("exec {}\\;", target_shell.as_string()));
+        }
+        *arg = format!("{} '{}'", command_runner, temp);
+    }
+
+    let escape_char = match init_shell_name.as_str() {
+        "powershell" => "`",
+        _args => "",
+    };
+
+    let w_len = preset.windows.len();
+
+    let mut windows: Vec<String> = Vec::with_capacity(w_len);
+
+    let arg_cnt: usize = 0;
+    for window in &preset.windows {
+        match window {
+            2 => windows.push(format!("sp {} {}", wt_profile, args.get(1).unwrap())),
+            3 => windows.push(format!(
+                "sp {} -s .66 {} {}; sp {} -s .5 {}",
+                wt_profile,
+                args.get(1).unwrap(),
+                escape_char,
+                wt_profile,
+                args.get(2).unwrap()
+            )),
+            4 => windows.push(format!(
+                "sp {} {} {}; sp {} {} {}; mf left {}; sp {} {}",
+                wt_profile,
+                args.get(1).unwrap(),
+                escape_char,
+                wt_profile,
+                args.get(2).unwrap(),
+                escape_char,
+                escape_char,
+                wt_profile,
+                args.get(3).unwrap(),
+            )),
+            _ => {}
+        }
+    }
+
+    for (i, s) in &mut windows[0..w_len - 1].iter_mut().enumerate() {
+        s.push_str(&format!(" nt {} ", wt_profile));
+        s.push_str(&format!("{};", escape_char));
+    }
+
+    let windows = windows.into_iter().collect::<String>();
+
+    let arg = format!(
+        "wt.exe {} {} {}; {}",
+        wt_profile,
+        args.get(0).unwrap(),
+        escape_char,
+        windows
+    );
+    warn!("{}", &arg);
+
+    init_shell_name.push_str(".exe");
+    let mut _process = std::process::Command::new(init_shell_name)
+        .arg(arg)
+        .spawn()
+        .expect("Failed to launch the target process.");
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_y) / 2),
+                Constraint::Percentage(percent_y),
+                Constraint::Percentage((100 - percent_y) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(rect);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_x) / 2),
+                Constraint::Percentage(percent_x),
+                Constraint::Percentage((100 - percent_x) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(layout[1])[1]
+}
+
+pub fn write_preset_to_file(
+    app_config: &mut AppConfig,
+    app_messages: &Vec<String>,
+    write_type: WriteType,
+    config_path: &str,
+) -> Result<(), ()> {
+    if let WriteType::Create = write_type {
+        let new_preset = Preset::new(app_messages);
+        app_config.presets.push(new_preset);
+    }
+
+    let config_file = File::create(config_path);
+
+    if config_file.is_err() {
+        error!("Error while reading the config file.");
+        panic!();
+    }
+
+    let mut writer = BufWriter::new(config_file.unwrap());
+    serde_json::to_writer(&mut writer, &app_config).unwrap();
+    writer.flush().unwrap();
+
+    Ok(())
 }

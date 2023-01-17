@@ -30,11 +30,15 @@ pub enum PresetValue {
     Windows(usize, u8),
     Args(usize, String),
 }
-#[derive(PartialEq)]
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
 pub enum ShellType {
+    #[serde(rename = "powershell")]
     Powershell,
+    #[serde(rename = "cmd")]
     Cmd,
+    #[serde(rename = "bash")]
     Bash,
+    #[serde(rename = "zsh")]
     Zsh,
 }
 
@@ -61,8 +65,9 @@ pub struct AppConfig {
 }
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Settings {
-    pub(super) terminal_path: String,
-    pub(super) shell_name: String,
+    pub(super) wt_profile: String,
+    pub(super) init_shell: ShellType,
+    pub(super) target_shell: ShellType,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

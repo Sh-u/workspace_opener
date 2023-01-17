@@ -1,6 +1,1 @@
-{
-  "presets": [
-    { "name": "dudud", "tabs": 1, "windows": [2], "args": ["ls", "cd .."] }
-  ],
-  "settings": { "terminal_path": "", "shell_name": "Ubuntu" }
-}
+{"presets":[{"name":"dudu","tabs":3,"windows":[3,1,2],"args":["cd Rust, ls    ","cd Rust, cd workspace_opener, ls","cd Rust,ls,","ls","ls","ls"]}],"settings":{"wt_profile":"","init_shell":"powershell","target_shell":"zsh"}}

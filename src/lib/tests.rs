@@ -4,7 +4,7 @@ use serde_json::json;
 
 use crate::lib::{api::write_preset_to_file, model::WriteType};
 
-use super::model::{AppConfig, Item, Preset, PresetValue, Settings, State};
+use super::model::{AppConfig, Item, Preset, PresetValue, Settings, ShellType, State};
 
 #[test]
 fn preset_creation_basic() {
@@ -90,8 +90,9 @@ fn preset_deletion() {
     };
 
     let settings = Settings {
-        terminal_path: "".to_string(),
-        shell_name: "".to_string(),
+        wt_profile: "Ubuntu".to_string(),
+        init_shell: ShellType::Powershell,
+        target_shell: ShellType::Zsh,
     };
 
     let mut app_config = AppConfig {
@@ -129,7 +130,7 @@ fn test_write_to_file_and_create() {
     ];
 
     let config_path = "test.json";
-    let test_string =  "{\"presets\":[{\"name\":\"Test Preset\",\"tabs\":3,\"windows\":[2,1,1],\"args\":[\"arg w1\",\"arg w1\",\"arg w2\",\"arg w3\"]}],\"settings\":{\"terminal_path\":\"\",\"shell_name\":\"\"}}".to_string();
+    let test_string =  "{\"presets\":[{\"name\":\"Test Preset\",\"tabs\":3,\"windows\":[2,1,1],\"args\":[\"arg w1\",\"arg w1\",\"arg w2\",\"arg w3\"]}],\"settings\":{\"wt_profile\":\"Ubuntu\",\"init_shell\":\"powershell\",\"target_shell\":\"zsh\"}}".to_string();
     write_preset_to_file(
         &mut app_config,
         &app_messages,
@@ -175,7 +176,7 @@ fn test_write_to_file_and_delete() {
         .delete_preset_by_name("Test Preset")
         .expect("Failed to delete preset");
     let test_string =
-        "{\"presets\":[],\"settings\":{\"terminal_path\":\"\",\"shell_name\":\"\"}}".to_string();
+        "{\"presets\":[],\"settings\":{\"wt_profile\":\"Ubuntu\",\"init_shell\":\"powershell\",\"target_shell\":\"zsh\"}}".to_string();
     write_preset_to_file(&mut app_config, &app_messages, WriteType::Edit, config_path)
         .expect("Failed to write file");
 
@@ -395,8 +396,9 @@ fn test_preset_change_field_value() {
 
 fn create_test_app_config() -> AppConfig {
     let settings = Settings {
-        terminal_path: "".to_string(),
-        shell_name: "".to_string(),
+        wt_profile: "Ubuntu".to_string(),
+        init_shell: ShellType::Powershell,
+        target_shell: ShellType::Zsh,
     };
 
     let app_config = AppConfig {

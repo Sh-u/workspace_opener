@@ -1,1 +1,1 @@
-22:13:21 [WARN] wt.exe -p "Powershell" powershell -NoExit -Command  'ls\; ' `; sp -p "Powershell" powershell -NoExit -Command  'cd ..\; '
+22:16:42 [WARN] wt.exe  wsl ~ -e zsh -c  'cd Rust\;  ls    \; exec zsh\;' `; sp  -s .66 wsl ~ -e zsh -c  'cd Rust\;  cd workspace_opener\;  ls\; exec zsh\;' `; sp  -s .5 wsl ~ -e zsh -c  'cd Rust\; ls\; \; exec zsh\;' nt  `; sp  wsl ~ -e zsh -c  'cd Rust\;  cd workspace_opener\;  ls\; exec zsh\;' nt  `; 

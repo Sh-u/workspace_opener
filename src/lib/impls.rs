@@ -3,7 +3,7 @@ use super::model::{
     State, StatefulList, ShellType,
 };
 use log::{error, warn};
-use std::collections::VecDeque;
+use std::{collections::VecDeque, fmt::Display};
 use tui::{style::Color, widgets::ListState};
 
 impl Item {
@@ -20,23 +20,31 @@ impl State {
     fn create_items(&self, app_config: Option<&AppConfig>) -> Option<Vec<Item>> {
         match self {
             State::Start => Some(vec![
-                Item::new("Choose Preset.".to_string(), State::ChoosePreset, None),
-                Item::new("Create Preset.".to_string(), State::CreatePreset, None),
-                Item::new("Settings.".to_string(), State::Settings, None),
+                Item::new("Choose Preset".to_string(), State::ChoosePreset, None),
+                Item::new("Create Preset".to_string(), State::CreatePreset, None),
+                Item::new("Settings".to_string(), State::Settings, None),
             ]),
             State::Settings => Some(vec![
                 Item::new(
                     format!(
-                        "Terminal path: {}",
-                        app_config.unwrap().settings.terminal_path
+                        "Windows terminal profile: {}",
+                        app_config.unwrap().settings.wt_profile
                     ),
                     State::ChangeFieldName,
                     None,
                 ),
                 Item::new(
                     format!(
-                        "Shell name: {}",
-                        app_config.unwrap().settings.shell_name
+                        "Init shell (powershell/cmd): {}",
+                        app_config.unwrap().settings.init_shell
+                    ),
+                    State::ChangeFieldName,
+                    None,
+                ),
+                Item::new(
+                    format!(
+                        "Target shell (powershell/cmd/bash/zsh): {}",
+                        app_config.unwrap().settings.target_shell
                     ),
                     State::ChangeFieldName,
                     None,
@@ -50,7 +58,7 @@ impl State {
         match self {
             State::CreatePreset => Some(vec![
                 "Enter preset name:".to_string(),
-                "Enter tabs amount (number only):".to_string(),
+                "Enter tabs amount (1-10):".to_string(),
             ]),
             _ => None,
         }
@@ -406,6 +414,13 @@ impl App {
 }
 
 impl AppConfig {
+    pub fn get_preset_by_name(&self, name: &str) -> Option<&Preset> {
+        if let Some(found) = self.presets.iter().find(|preset| preset.name == name) {
+            Some(found)
+        } else {
+            None
+        }
+    }
     pub fn get_mut_preset_by_name(&mut self, name: &str) -> Option<&mut Preset> {
         if let Some(found) = self.presets.iter_mut().find(|preset| preset.name == name) {
             Some(found)
@@ -429,10 +444,13 @@ impl Settings {
     pub fn change_name(&mut self, index: usize, new_name: &str) -> Result<(), String> {
         match index {
             0 => {
-                self.terminal_path = new_name.to_string();
+                self.wt_profile = new_name.to_string();
             }
             1 => {
-                self.shell_name = new_name.to_string();
+                self.init_shell = ShellType::from_str(new_name)?
+            }
+            2 => {
+                self.target_shell = ShellType::from_str(new_name)?
             }
             _ => {
                 return Err(String::from(
@@ -491,6 +509,28 @@ impl ShellType {
             ShellType::Cmd => "cmd".to_string(),
             ShellType::Bash => "bash".to_string(),
             ShellType::Zsh => "zsh".to_string(),
+        }
+    }
+
+    pub fn from_str( name: &str) -> Result<Self, String> {
+        match name {
+            "powershell" => Ok(ShellType::Powershell),
+            "cmd" => Ok(ShellType::Cmd), 
+            "bash" => Ok(ShellType::Bash),
+            "zsh" => Ok(ShellType::Zsh),
+            _ => return Err("Incorrect shell name.".to_string())
+        }
+
+    }
+}
+
+impl Display for ShellType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ShellType::Powershell => write!(f, "powershell"),
+            ShellType::Cmd => write!(f, "cmd"),
+            ShellType::Bash => write!(f, "bash"),
+            ShellType::Zsh => write!(f, "zsh"),
         }
     }
 }
