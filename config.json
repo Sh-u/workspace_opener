@@ -1,1 +1,1 @@
-{"presets":[{"name":"dudu","tabs":3,"windows":[3,1,2],"args":["cd Rust, ls    ","cd Rust, cd workspace_opener, ls","cd Rust,ls,","ls","ls","ls"]}],"settings":{"wt_profile":"","init_shell":"powershell","target_shell":"zsh"}}
+{"presets":[{"name":"dudu","tabs":2,"windows":[3,2],"args":["dir","find kacperek","cd ..","date",""]}],"settings":{"wt_profile":"","init_shell":"powershell","target_shell":"cmd"}}

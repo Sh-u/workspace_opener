@@ -198,10 +198,6 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         app.input.pop();
                     }
                     KeyCode::Enter => {
-                        if app.input.is_empty() {
-                            continue;
-                        }
-
                         let msg_length = app.messages.len();
 
                         if msg_length == 1 {
@@ -233,8 +229,12 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                                 ));
                             }
                         }
-
-                        app.messages.push(app.input.drain(..).collect());
+                        let input: String = app.input.drain(..).collect();
+                        let mut input = input.trim().to_string();
+                        if input.ends_with(",") {
+                            input = input[..input.len() - 1].to_string();
+                        }
+                        app.messages.push(input);
 
                         if app.messages.len() == app.prompts.len() {
                             pch.reset();
@@ -394,7 +394,7 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
     let mut init_shell_name = init_shell.as_string();
 
     let command_runner = match target_shell {
-        ShellType::Cmd => "cmd /k ",
+        ShellType::Cmd => "cmd /k",
         ShellType::Powershell => "powershell -NoExit -Command ",
         ShellType::Bash => "wsl ~ -e bash -c ",
         ShellType::Zsh => "wsl ~ -e zsh -c ",
@@ -419,37 +419,45 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
 
     let mut windows: Vec<String> = Vec::with_capacity(w_len);
 
-    let arg_cnt: usize = 0;
+    let mut arg_idx = vec![0; preset.windows.iter().sum::<u8>() as usize];
+    arg_idx.iter_mut().enumerate().for_each(|(i, x)| *x = i + 1);
     for window in &preset.windows {
         match window {
-            2 => windows.push(format!("sp {} {}", wt_profile, args.get(1).unwrap())),
+            2 => windows.push(format!(
+                "sp {} {}",
+                wt_profile,
+                args.get(arg_idx.remove(0)).unwrap()
+            )),
             3 => windows.push(format!(
                 "sp {} -s .66 {} {}; sp {} -s .5 {}",
                 wt_profile,
-                args.get(1).unwrap(),
+                args.get(arg_idx.remove(0)).unwrap(),
                 escape_char,
                 wt_profile,
-                args.get(2).unwrap()
+                args.get(arg_idx.remove(0)).unwrap()
             )),
             4 => windows.push(format!(
                 "sp {} {} {}; sp {} {} {}; mf left {}; sp {} {}",
                 wt_profile,
-                args.get(1).unwrap(),
+                args.get(arg_idx.remove(0)).unwrap(),
                 escape_char,
                 wt_profile,
-                args.get(2).unwrap(),
+                args.get(arg_idx.remove(0)).unwrap(),
                 escape_char,
                 escape_char,
                 wt_profile,
-                args.get(3).unwrap(),
+                args.get(arg_idx.remove(0)).unwrap(),
             )),
             _ => {}
         }
     }
 
+    let nt_iters = &windows[0..w_len - 1].len() - 1;
     for (i, s) in &mut windows[0..w_len - 1].iter_mut().enumerate() {
-        s.push_str(&format!(" nt {} ", wt_profile));
-        s.push_str(&format!("{};", escape_char));
+        s.push_str(&format!("`; nt {}", wt_profile));
+        if i != nt_iters {
+            s.push_str(&format!("{};", escape_char));
+        }
     }
 
     let windows = windows.into_iter().collect::<String>();
