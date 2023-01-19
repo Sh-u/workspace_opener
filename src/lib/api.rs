@@ -198,60 +198,29 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                         app.input.pop();
                     }
                     KeyCode::Enter => {
-                        let msg_length = app.messages.len();
+                        if let Err(_) = handle_creating_preset(&mut pch, app) {
+                            continue;
+                        };
 
-                        if msg_length == 1 {
-                            let Ok(tabs_amount) = app.input.parse::<u8>() else {continue;};
-                            if tabs_amount < 1 || tabs_amount > 10 {
-                                continue;
-                            };
+                        let input = format_input(&app.input.drain(..).collect::<String>());
 
-                            for n in 1..=tabs_amount {
-                                app.prompts.push(format!(
-                                    "Enter windows amount (1-4) for tab number {}: ",
-                                    n
-                                ));
-                            }
-                            pch.max_windows = tabs_amount as usize;
-                        } else if msg_length > 1 && pch.windows.len() < pch.max_windows {
-                            let Ok(input) = app.input.parse::<u8>() else {continue;};
-                            if input < 1 || input > 4 {
-                                continue;
-                            };
-                            pch.windows.push_back(input);
-
-                            let Some(&windows_back) = pch.windows.back() else {continue;};
-                            for n in 1..=windows_back {
-                                app.prompts.push(format!(
-                                    "Enter arg {} for window {}",
-                                    n,
-                                    pch.windows.len()
-                                ));
-                            }
-                        }
-                        let input: String = app.input.drain(..).collect();
-                        let mut input = input.trim().to_string();
-                        if input.ends_with(",") {
-                            input = input[..input.len() - 1].to_string();
-                        }
                         app.messages.push(input);
 
                         if app.messages.len() == app.prompts.len() {
                             pch.reset();
 
-                            if write_preset_to_file(
+                            write_preset_to_file(
                                 &mut app_config,
                                 &app.messages,
                                 WriteType::Create,
                                 CONFIG,
                             )
-                            .is_ok()
-                            {
-                                app.popup
-                                    .activate_popup("Preset created successfuly :)", Color::Green);
+                            .unwrap();
 
-                                app.handle_state_change(("", app.previous_state), None);
-                            }
+                            app.popup
+                                .activate_popup("Preset created successfuly :)", Color::Green);
+
+                            app.handle_state_change(("", app.previous_state), None);
                         }
                     }
 
@@ -331,7 +300,9 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                             let Some(pr) = app_config.get_mut_preset_by_name(&pr.name) else{continue;};
                             let Some(mut pr_value) = item.preset_value else {continue;};
 
-                            if let Err(err) = pr_value.update_value(&app.input) {
+                            let input = format_input(&app.input);
+
+                            if let Err(err) = pr_value.update_value(&input) {
                                 error!("{}", err);
                                 continue;
                             }
@@ -377,33 +348,34 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
 }
 
 fn run_config(selected_name: &str, app_config: &AppConfig) {
-    let wt_profile = &app_config.settings.wt_profile;
-    let wt_profile = match wt_profile.is_empty() {
-        false => format!("-p \"{}\"", wt_profile),
-        _ => wt_profile.to_string(),
-    };
-
-    let init_shell = &app_config.settings.init_shell;
-    let target_shell = &app_config.settings.target_shell;
-
     let Some(preset) = app_config.get_preset_by_name(selected_name) else {
             error!("Cannot find the matching preset name while trying to run the config.");
             panic!();
         };
 
+    let wt_profile = &preset.preset_info.wt_profile;
+    let wt_profile = match wt_profile.is_empty() {
+        false => format!(" -p \"{}\"", wt_profile),
+        _ => wt_profile.to_string(),
+    };
+
+    let init_shell = &preset.preset_info.init_shell;
+    let target_shell = &preset.preset_info.target_shell;
+
     let mut init_shell_name = init_shell.as_string();
 
     let command_runner = match target_shell {
+        ShellType::WindowsPowershell => "powershell -NoExit -Command",
+        ShellType::Powershell => "pwsh -NoExit -Command",
         ShellType::Cmd => "cmd /k",
-        ShellType::Powershell => "powershell -NoExit -Command ",
-        ShellType::Bash => "wsl ~ -e bash -c ",
-        ShellType::Zsh => "wsl ~ -e zsh -c ",
+        ShellType::Bash => "wsl ~ -e bash -c",
+        ShellType::Zsh => "wsl ~ -e zsh -c",
     };
 
     let mut args = preset.args.clone();
 
     for arg in args.iter_mut() {
-        let mut temp: String = arg.split(",").map(|s| format!("{}\\; ", s)).collect();
+        let mut temp: String = arg.split(",").map(|s| format!("{}\\;", s)).collect();
         if *target_shell == ShellType::Zsh || *target_shell == ShellType::Bash {
             temp.push_str(&format!("exec {}\\;", target_shell.as_string()));
         }
@@ -420,16 +392,27 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
     let mut windows: Vec<String> = Vec::with_capacity(w_len);
 
     let mut arg_idx = vec![0; preset.windows.iter().sum::<u8>() as usize];
-    arg_idx.iter_mut().enumerate().for_each(|(i, x)| *x = i + 1);
+    arg_idx.iter_mut().enumerate().for_each(|(i, x)| *x = i);
     for window in &preset.windows {
         match window {
+            1 => windows.push(format!(
+                "{} {}",
+                wt_profile,
+                args.get(arg_idx.remove(0)).unwrap(),
+            )),
             2 => windows.push(format!(
-                "sp {} {}",
+                "{} {} {}; sp{} {}",
+                wt_profile,
+                args.get(arg_idx.remove(0)).unwrap(),
+                escape_char,
                 wt_profile,
                 args.get(arg_idx.remove(0)).unwrap()
             )),
             3 => windows.push(format!(
-                "sp {} -s .66 {} {}; sp {} -s .5 {}",
+                "{} {} {}; sp{} -s .66 {} {}; sp{} -s .5 {}",
+                wt_profile,
+                args.get(arg_idx.remove(0)).unwrap(),
+                escape_char,
                 wt_profile,
                 args.get(arg_idx.remove(0)).unwrap(),
                 escape_char,
@@ -437,7 +420,10 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
                 args.get(arg_idx.remove(0)).unwrap()
             )),
             4 => windows.push(format!(
-                "sp {} {} {}; sp {} {} {}; mf left {}; sp {} {}",
+                "{} {} {}; sp{} {} {}; sp{} {} {}; mf left {}; sp{} {}",
+                wt_profile,
+                args.get(arg_idx.remove(0)).unwrap(),
+                escape_char,
                 wt_profile,
                 args.get(arg_idx.remove(0)).unwrap(),
                 escape_char,
@@ -452,23 +438,13 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
         }
     }
 
-    let nt_iters = &windows[0..w_len - 1].len() - 1;
-    for (i, s) in &mut windows[0..w_len - 1].iter_mut().enumerate() {
-        s.push_str(&format!("`; nt {}", wt_profile));
-        if i != nt_iters {
-            s.push_str(&format!("{};", escape_char));
-        }
+    for s in &mut windows[0..w_len - 1].iter_mut() {
+        s.push_str(&format!("`; nt",));
     }
 
     let windows = windows.into_iter().collect::<String>();
 
-    let arg = format!(
-        "wt.exe {} {} {}; {}",
-        wt_profile,
-        args.get(0).unwrap(),
-        escape_char,
-        windows
-    );
+    let arg = format!("wt.exe{}", windows);
     warn!("{}", &arg);
 
     init_shell_name.push_str(".exe");
@@ -476,6 +452,70 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
         .arg(arg)
         .spawn()
         .expect("Failed to launch the target process.");
+}
+
+pub fn write_preset_to_file(
+    app_config: &mut AppConfig,
+    app_messages: &Vec<String>,
+    write_type: WriteType,
+    config_path: &str,
+) -> Result<(), ()> {
+    if let WriteType::Create = write_type {
+        let new_preset = Preset::new(app_messages);
+        app_config.presets.push(new_preset);
+    }
+
+    let config_file = File::create(config_path);
+
+    if config_file.is_err() {
+        error!("Error while reading the config file.");
+        panic!();
+    }
+
+    let mut writer = BufWriter::new(config_file.unwrap());
+    serde_json::to_writer(&mut writer, &app_config).unwrap();
+    writer.flush().unwrap();
+
+    Ok(())
+}
+
+fn format_input(input: &str) -> String {
+    let mut input = input.trim();
+    if input.ends_with(",") {
+        input = &input[..input.len() - 1];
+    }
+
+    input.to_string()
+}
+
+fn handle_creating_preset(pch: &mut PresetCreationHelper, app: &mut App) -> Result<(), ()> {
+    let msg_length = app.messages.len();
+    if msg_length == 1 {
+        let Ok(tabs_amount) = app.input.parse::<u8>() else {return Err(())};
+        if tabs_amount < 1 || tabs_amount > 10 {
+            return Err(());
+        };
+
+        for n in 1..=tabs_amount {
+            app.prompts
+                .push(format!("Enter windows amount (1-4) for tab number {}: ", n));
+        }
+        pch.max_windows = tabs_amount as usize;
+    } else if msg_length > 1 && pch.windows.len() < pch.max_windows {
+        let Ok(input) = app.input.parse::<u8>() else {return Err(());};
+        if input < 1 || input > 4 {
+            return Err(());
+        };
+        pch.windows.push_back(input);
+
+        let Some(&windows_back) = pch.windows.back() else {return Err(());};
+        for n in 1..=windows_back {
+            app.prompts
+                .push(format!("Enter arg {} for window {}", n, pch.windows.len()));
+        }
+    }
+
+    Ok(())
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
@@ -502,29 +542,4 @@ fn centered_rect(percent_x: u16, percent_y: u16, rect: Rect) -> Rect {
             .as_ref(),
         )
         .split(layout[1])[1]
-}
-
-pub fn write_preset_to_file(
-    app_config: &mut AppConfig,
-    app_messages: &Vec<String>,
-    write_type: WriteType,
-    config_path: &str,
-) -> Result<(), ()> {
-    if let WriteType::Create = write_type {
-        let new_preset = Preset::new(app_messages);
-        app_config.presets.push(new_preset);
-    }
-
-    let config_file = File::create(config_path);
-
-    if config_file.is_err() {
-        error!("Error while reading the config file.");
-        panic!();
-    }
-
-    let mut writer = BufWriter::new(config_file.unwrap());
-    serde_json::to_writer(&mut writer, &app_config).unwrap();
-    writer.flush().unwrap();
-
-    Ok(())
 }

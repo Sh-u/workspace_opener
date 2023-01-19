@@ -1,1 +1,1 @@
-22:17:10 [WARN] wt.exe  cmd /k 'dir\; ' `; sp  -s .66 cmd /k 'find kacperek\; ' `; sp  -s .5 cmd /k 'cd ..\; '`; nt sp  cmd /k 'date\; '
+22:39:54 [WARN] wt.exe -p "Ubuntu" wsl ~ -e zsh -c 'ls\;exec zsh\;'`; nt -p "Ubuntu" wsl ~ -e zsh -c 'pwd\;exec zsh\;' `; sp -p "Ubuntu" wsl ~ -e zsh -c '\;exec zsh\;'`; nt -p "Ubuntu" wsl ~ -e zsh -c '\;exec zsh\;'

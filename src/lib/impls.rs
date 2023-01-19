@@ -1,6 +1,6 @@
 use super::model::{
-    App, AppConfig, InputMode, Item, Popup, Preset, PresetCreationHelper, PresetValue, Settings,
-    State, StatefulList, ShellType,
+    App, AppConfig, InputMode, Item, Popup, Preset, PresetCreationHelper, PresetValue, PresetInfo,
+    State, StatefulList, ShellType, PresetInfoValue, Settings,
 };
 use log::{error, warn};
 use std::{collections::VecDeque, fmt::Display};
@@ -27,28 +27,11 @@ impl State {
             State::Settings => Some(vec![
                 Item::new(
                     format!(
-                        "Windows terminal profile: {}",
-                        app_config.unwrap().settings.wt_profile
+                        "Debug mode: on",
                     ),
-                    State::ChangeFieldName,
+                    State::Settings,
                     None,
-                ),
-                Item::new(
-                    format!(
-                        "Init shell (powershell/cmd): {}",
-                        app_config.unwrap().settings.init_shell
-                    ),
-                    State::ChangeFieldName,
-                    None,
-                ),
-                Item::new(
-                    format!(
-                        "Target shell (powershell/cmd/bash/zsh): {}",
-                        app_config.unwrap().settings.target_shell
-                    ),
-                    State::ChangeFieldName,
-                    None,
-                ),
+                )
             ]),
             _ => None,
         }
@@ -156,11 +139,18 @@ impl Preset {
             .skip(2 + windows.len())
             .map(|arg| arg.to_string())
             .collect::<Vec<String>>();
+        
+        let preset_info = PresetInfo {
+            wt_profile: String::new(),
+            init_shell: ShellType::WindowsPowershell,
+            target_shell: ShellType::WindowsPowershell
+        };
         Preset {
             name,
             tabs,
             windows,
             args,
+            preset_info
         }
     }
 
@@ -222,6 +212,11 @@ impl Preset {
                     return Err(String::from("Cannot find windows with current index."));
                 };
                 *current_arg = new_name;
+            }
+            PresetValue::PresetInfo(new_preset_info_value) => match new_preset_info_value {
+                PresetInfoValue::WtProfile(new_wt_profile) => self.preset_info.wt_profile = new_wt_profile,
+                PresetInfoValue::InitShell(new_init_shell) => self.preset_info.init_shell = new_init_shell,
+                PresetInfoValue::TargetShell(new_target_shell) => self.preset_info.target_shell = new_target_shell
             }
         }
 
@@ -287,6 +282,18 @@ impl Preset {
             items.push(arg);
             arg_count += 1;
         }
+
+        let wt_profile = Item::new(format!("Windows terminal profile name: {}",self.preset_info.wt_profile),State::ChangeFieldName,
+        Some(PresetValue::PresetInfo(PresetInfoValue::WtProfile(self.preset_info.wt_profile.clone()))));
+        items.push(wt_profile);
+
+        let init_shell = Item::new(format!("Init shell (powershell/pwsh/cmd): {}",self.preset_info.init_shell.as_string()),State::ChangeFieldName,
+        Some(PresetValue::PresetInfo(PresetInfoValue::InitShell(self.preset_info.init_shell.clone()))));
+        items.push(init_shell);
+
+        let target_shell = Item::new(format!("Target shell (powershell/pwsh/cmd/bash/zsh): {}",self.preset_info.target_shell.as_string()),State::ChangeFieldName,
+        Some(PresetValue::PresetInfo(PresetInfoValue::TargetShell(self.preset_info.target_shell.clone()))));
+        items.push(target_shell);
 
         items
     }
@@ -359,6 +366,7 @@ impl App {
                     self.prompts.push(prompt);
                 }
                 self.input_mode = InputMode::Input;
+                self.items.list_state.select(Some(0));
             }
             State::ChoosePreset => {
                 self.items.items.clear();
@@ -376,6 +384,7 @@ impl App {
                         self.popup.activate_popup("No presets created.", Color::Red);
                     }
                 }
+                self.items.list_state.select(Some(0));
             }
             State::EditPreset => {
                 self.input_mode = InputMode::Normal;
@@ -389,6 +398,7 @@ impl App {
                     }
                     _ => {}
                 }
+                self.items.list_state.select(Some(0));
             }
             State::ChangeFieldName => {
                 self.input_mode = InputMode::Edit;
@@ -410,6 +420,7 @@ impl App {
                 self.items.list_state.select(Some(0));
             }
         };
+        
     }
 }
 
@@ -444,17 +455,11 @@ impl Settings {
     pub fn change_name(&mut self, index: usize, new_name: &str) -> Result<(), String> {
         match index {
             0 => {
-                self.wt_profile = new_name.to_string();
-            }
-            1 => {
-                self.init_shell = ShellType::from_str(new_name)?
-            }
-            2 => {
-                self.target_shell = ShellType::from_str(new_name)?
+                self.debug_mode = new_name.to_string();
             }
             _ => {
                 return Err(String::from(
-                    "Trying to change the name while using wrong index.",
+                    "Cannot change the setting name: INDEX OUT OF BOUNDS.",
                 ));
             }
         }
@@ -486,15 +491,36 @@ impl PresetValue {
             PresetValue::Tabs(tabs) => {
                 let Ok(new_tabs) = new_val.parse::<u8>() else {
                     return Err(String::from("PresetValue, update_value error parsing tabs: CANNOT PARSE GIVEN STRING."));};
+                if new_tabs > 10 {return Err(String::from("PresetValue, update_value error creating tabs: INVALID AMOUNT OF TABS"));}    
                 *tabs = new_tabs;
             }
             PresetValue::Windows(_, windows) => {
                 let Ok(new_windows) = new_val.parse::<u8>() else {
                     return Err(String::from("PresetValue update_value error parsing windows: CANNOT PARSE GIVEN STRING."));};
+                if new_windows > 4 {return Err(String::from("PresetValue, update_value error creating windows: INVALID AMOUNT OF WINDOWS"));}        
                 *windows = new_windows;
             }
             PresetValue::Args(_, arg) => {
                 *arg = new_val.to_string();
+            }
+            PresetValue::PresetInfo(preset_info_value) => match preset_info_value {
+                PresetInfoValue::WtProfile(name) => {
+                    *name = new_val.to_string();
+                }
+                PresetInfoValue::InitShell(init_shell) => {
+                    *init_shell = match new_val {
+                        "powershell" | "cmd" | "pwsh" => ShellType::from_str(new_val)?,
+                        _ => return Err(String::from("PresetValue update_value error parsing PresetInfo: INIT SHELL MUST BE 'powershell' OR 'cmd' OR 'pwsh'."))
+                    };
+                }
+                PresetInfoValue::TargetShell(target_shell) => {
+                    *target_shell = ShellType::from_str(new_val)?
+                }
+                _ => {
+                    return Err(String::from(
+                        "PresetValue update_value error parsing PresetInfo: INDEX OUT OF BOUNDS.",
+                    ));
+                }
             }
         }
 
@@ -505,7 +531,8 @@ impl PresetValue {
 impl ShellType {
     pub fn as_string(&self) -> String {
         match self {
-            ShellType::Powershell => "powershell".to_string(),
+            ShellType::WindowsPowershell => "powershell".to_string(),
+            ShellType::Powershell => "pwsh".to_string(),
             ShellType::Cmd => "cmd".to_string(),
             ShellType::Bash => "bash".to_string(),
             ShellType::Zsh => "zsh".to_string(),
@@ -514,7 +541,8 @@ impl ShellType {
 
     pub fn from_str( name: &str) -> Result<Self, String> {
         match name {
-            "powershell" => Ok(ShellType::Powershell),
+            "powershell" => Ok(ShellType::WindowsPowershell),
+            "pwsh" => Ok(ShellType::Powershell),
             "cmd" => Ok(ShellType::Cmd), 
             "bash" => Ok(ShellType::Bash),
             "zsh" => Ok(ShellType::Zsh),
@@ -527,7 +555,8 @@ impl ShellType {
 impl Display for ShellType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ShellType::Powershell => write!(f, "powershell"),
+            ShellType::WindowsPowershell => write!(f, "powershell"),
+            ShellType::Powershell => write!(f, "pwsh"),
             ShellType::Cmd => write!(f, "cmd"),
             ShellType::Bash => write!(f, "bash"),
             ShellType::Zsh => write!(f, "zsh"),

@@ -29,10 +29,19 @@ pub enum PresetValue {
     Tabs(u8),
     Windows(usize, u8),
     Args(usize, String),
+    PresetInfo(PresetInfoValue),
+}
+#[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
+pub enum PresetInfoValue {
+    WtProfile(String),
+    InitShell(ShellType),
+    TargetShell(ShellType),
 }
 #[derive(PartialEq, Serialize, Deserialize, Debug, Clone)]
 pub enum ShellType {
     #[serde(rename = "powershell")]
+    WindowsPowershell,
+    #[serde(rename = "pwsh")]
     Powershell,
     #[serde(rename = "cmd")]
     Cmd,
@@ -64,10 +73,14 @@ pub struct AppConfig {
     pub(super) settings: Settings,
 }
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct Settings {
+pub struct PresetInfo {
     pub(super) wt_profile: String,
     pub(super) init_shell: ShellType,
     pub(super) target_shell: ShellType,
+}
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub struct Settings {
+    pub(super) debug_mode: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
@@ -76,6 +89,7 @@ pub struct Preset {
     pub(super) tabs: u8,
     pub(super) windows: Vec<u8>,
     pub(super) args: Vec<String>,
+    pub(super) preset_info: PresetInfo,
 }
 
 pub struct App {
