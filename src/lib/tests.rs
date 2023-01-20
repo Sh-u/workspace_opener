@@ -2,12 +2,18 @@ use std::{fs, io::Read};
 
 use serde_json::json;
 
-use crate::lib::{api::write_preset_to_file, model::WriteType};
+use crate::lib::{
+    api::write_preset_to_file,
+    model::{PresetInfo, WriteType},
+};
 
-use super::model::{AppConfig, Item, Preset, PresetValue, Settings, ShellType, State};
+use super::model::{
+    AppConfig, Item, Preset, PresetInfoValue, PresetValue, Settings, ShellType, State,
+};
 
 #[test]
 fn preset_creation_basic() {
+    let preset_info = PresetInfo::default();
     let target = Preset {
         name: String::from("Test Preset"),
         tabs: 3,
@@ -18,6 +24,7 @@ fn preset_creation_basic() {
             String::from("arg w2"),
             String::from("arg w3"),
         ],
+        preset_info,
     };
 
     let mut input: Vec<String> = vec![];
@@ -47,11 +54,14 @@ fn preset_creation_large() {
     for n in 0..20 {
         args.push(format!("arg w4: {}", n))
     }
+
+    let preset_info = PresetInfo::default();
     let target = Preset {
         name: String::from("Test Preset"),
         tabs: 4,
         windows: vec![2, 1, 1, 20],
         args,
+        preset_info,
     };
 
     let mut input: Vec<String> = vec![];
@@ -77,6 +87,7 @@ fn preset_creation_large() {
 
 #[test]
 fn preset_deletion() {
+    let preset_info = PresetInfo::default();
     let preset = Preset {
         name: String::from("Test Preset"),
         tabs: 3,
@@ -87,13 +98,10 @@ fn preset_deletion() {
             String::from("arg w2"),
             String::from("arg w3"),
         ],
+        preset_info,
     };
 
-    let settings = Settings {
-        wt_profile: "Ubuntu".to_string(),
-        init_shell: ShellType::Powershell,
-        target_shell: ShellType::Zsh,
-    };
+    let settings = Settings::new();
 
     let mut app_config = AppConfig {
         presets: vec![preset],
@@ -130,7 +138,7 @@ fn test_write_to_file_and_create() {
     ];
 
     let config_path = "test.json";
-    let test_string =  "{\"presets\":[{\"name\":\"Test Preset\",\"tabs\":3,\"windows\":[2,1,1],\"args\":[\"arg w1\",\"arg w1\",\"arg w2\",\"arg w3\"]}],\"settings\":{\"wt_profile\":\"Ubuntu\",\"init_shell\":\"powershell\",\"target_shell\":\"zsh\"}}".to_string();
+    let test_string =  "{\"presets\":[{\"name\":\"Test Preset\",\"tabs\":3,\"windows\":[2,1,1],\"args\":[\"arg w1\",\"arg w1\",\"arg w2\",\"arg w3\"],\"preset_info\":{\"wt_profile\":\"\",\"init_shell\":\"powershell\",\"target_shell\":\"powershell\"}}],\"settings\":{\"debug_mode\":\"on\"}}".to_string();
     write_preset_to_file(
         &mut app_config,
         &app_messages,
@@ -175,8 +183,7 @@ fn test_write_to_file_and_delete() {
     app_config
         .delete_preset_by_name("Test Preset")
         .expect("Failed to delete preset");
-    let test_string =
-        "{\"presets\":[],\"settings\":{\"wt_profile\":\"Ubuntu\",\"init_shell\":\"powershell\",\"target_shell\":\"zsh\"}}".to_string();
+    let test_string = "{\"presets\":[],\"settings\":{\"debug_mode\":\"on\"}}".to_string();
     write_preset_to_file(&mut app_config, &app_messages, WriteType::Edit, config_path)
         .expect("Failed to write file");
 
@@ -193,6 +200,7 @@ fn test_write_to_file_and_delete() {
 }
 #[test]
 fn test_into_items() {
+    let preset_info = PresetInfo::default();
     let preset = Preset {
         name: String::from("Test Preset"),
         tabs: 3,
@@ -203,6 +211,7 @@ fn test_into_items() {
             String::from("arg w2"),
             String::from("arg w3"),
         ],
+        preset_info,
     };
 
     let items = preset.into_items();
@@ -275,6 +284,39 @@ fn test_into_items() {
     );
     target.push(arg);
 
+    let wt_profile = Item::new(
+        format!("Windows terminal profile name: {}", ""),
+        State::ChangeFieldName,
+        Some(PresetValue::PresetInfo(PresetInfoValue::WtProfile(
+            "".to_string(),
+        ))),
+    );
+    target.push(wt_profile);
+
+    let init_shell = Item::new(
+        format!(
+            "Init shell (powershell/pwsh/cmd): {}",
+            "powershell".to_string()
+        ),
+        State::ChangeFieldName,
+        Some(PresetValue::PresetInfo(PresetInfoValue::InitShell(
+            ShellType::WindowsPowershell,
+        ))),
+    );
+    target.push(init_shell);
+
+    let target_shell = Item::new(
+        format!(
+            "Target shell (powershell/pwsh/cmd/bash/zsh): {}",
+            "powershell".to_string()
+        ),
+        State::ChangeFieldName,
+        Some(PresetValue::PresetInfo(PresetInfoValue::TargetShell(
+            ShellType::WindowsPowershell,
+        ))),
+    );
+    target.push(target_shell);
+
     for (index, item) in items.iter().enumerate() {
         assert_eq!(item, target.get(index).unwrap());
     }
@@ -282,6 +324,7 @@ fn test_into_items() {
 
 #[test]
 fn test_preset_change_field_value() {
+    let preset_info = PresetInfo::default();
     let mut preset = Preset {
         name: String::from("Test Preset"),
         tabs: 3,
@@ -292,6 +335,7 @@ fn test_preset_change_field_value() {
             String::from("arg w2"),
             String::from("arg w3"),
         ],
+        preset_info,
     };
 
     preset
@@ -314,6 +358,7 @@ fn test_preset_change_field_value() {
             String::from(""),
             String::from(""),
         ],
+        preset_info: preset.preset_info.clone(),
     };
     assert_eq!(preset, target);
 
@@ -335,6 +380,7 @@ fn test_preset_change_field_value() {
             String::from(""),
             String::from(""),
         ],
+        preset_info: preset.preset_info.clone(),
     };
     assert_eq!(preset, target);
 
@@ -359,6 +405,7 @@ fn test_preset_change_field_value() {
             String::from(""),
             String::from(""),
         ],
+        preset_info: preset.preset_info.clone(),
     };
 
     assert_eq!(preset, target);
@@ -376,6 +423,7 @@ fn test_preset_change_field_value() {
             String::from("arg w1"),
             String::from("arg w2"),
         ],
+        preset_info: preset.preset_info.clone(),
     };
 
     assert_eq!(preset, target);
@@ -389,17 +437,40 @@ fn test_preset_change_field_value() {
         tabs: 2,
         windows: vec![1, 1],
         args: vec![String::from("arg w1"), String::from("arg w2")],
+        preset_info: preset.preset_info.clone(),
+    };
+
+    assert_eq!(preset, target);
+
+    preset
+        .change_field_value(PresetValue::PresetInfo(PresetInfoValue::WtProfile(
+            "Ubuntu".to_owned(),
+        )))
+        .expect("Failed changing preset's windows");
+
+    preset
+        .change_field_value(PresetValue::PresetInfo(PresetInfoValue::TargetShell(
+            ShellType::Zsh,
+        )))
+        .expect("Failed changing preset's windows");
+
+    let target = Preset {
+        name: String::from("Preset Changed"),
+        tabs: 2,
+        windows: vec![1, 1],
+        args: vec![String::from("arg w1"), String::from("arg w2")],
+        preset_info: PresetInfo {
+            wt_profile: "Ubuntu".to_string(),
+            init_shell: ShellType::WindowsPowershell,
+            target_shell: ShellType::Zsh,
+        },
     };
 
     assert_eq!(preset, target);
 }
 
 fn create_test_app_config() -> AppConfig {
-    let settings = Settings {
-        wt_profile: "Ubuntu".to_string(),
-        init_shell: ShellType::Powershell,
-        target_shell: ShellType::Zsh,
-    };
+    let settings = Settings::new();
 
     let app_config = AppConfig {
         presets: vec![],

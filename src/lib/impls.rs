@@ -465,6 +465,12 @@ impl Settings {
         }
         Ok(())
     }
+
+    pub fn new() -> Settings {
+        Settings {
+            debug_mode: "on".to_string()
+        }
+    }
 }
 
 impl PresetCreationHelper {
@@ -560,6 +566,16 @@ impl Display for ShellType {
             ShellType::Cmd => write!(f, "cmd"),
             ShellType::Bash => write!(f, "bash"),
             ShellType::Zsh => write!(f, "zsh"),
+        }
+    }
+}
+
+impl PresetInfo {
+    pub fn default() -> PresetInfo {
+        PresetInfo {
+            wt_profile: String::new(),
+            init_shell: ShellType::WindowsPowershell,
+            target_shell: ShellType::WindowsPowershell,
         }
     }
 }
