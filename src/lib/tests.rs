@@ -1,15 +1,12 @@
-use std::{fs, io::Read};
-
-use serde_json::json;
-
+use super::{
+    api::create_wt_command,
+    model::{AppConfig, Item, Preset, PresetInfoValue, PresetValue, Settings, ShellType, State},
+};
 use crate::lib::{
     api::write_preset_to_file,
     model::{PresetInfo, WriteType},
 };
-
-use super::model::{
-    AppConfig, Item, Preset, PresetInfoValue, PresetValue, Settings, ShellType, State,
-};
+use std::{fs, io::Read};
 
 #[test]
 fn preset_creation_basic() {
@@ -101,7 +98,7 @@ fn preset_deletion() {
         preset_info,
     };
 
-    let settings = Settings::new();
+    let settings = Settings::default();
 
     let mut app_config = AppConfig {
         presets: vec![preset],
@@ -123,7 +120,7 @@ fn preset_deletion() {
 }
 #[test]
 fn test_write_to_file_and_create() {
-    let mut app_config = create_test_app_config();
+    let mut app_config = AppConfig::default();
 
     let app_messages = vec![
         String::from("Test Preset"),
@@ -161,7 +158,7 @@ fn test_write_to_file_and_create() {
 
 #[test]
 fn test_write_to_file_and_delete() {
-    let mut app_config = create_test_app_config();
+    let mut app_config = AppConfig::default();
 
     let app_messages = vec![
         String::from("Test Preset"),
@@ -324,19 +321,7 @@ fn test_into_items() {
 
 #[test]
 fn test_preset_change_field_value() {
-    let preset_info = PresetInfo::default();
-    let mut preset = Preset {
-        name: String::from("Test Preset"),
-        tabs: 3,
-        windows: vec![2, 1, 1],
-        args: vec![
-            String::from("arg w1"),
-            String::from("arg w1"),
-            String::from("arg w2"),
-            String::from("arg w3"),
-        ],
-        preset_info,
-    };
+    let mut preset = Preset::default();
 
     preset
         .change_field_value(PresetValue::Name("Preset Changed".to_string()))
@@ -469,13 +454,113 @@ fn test_preset_change_field_value() {
     assert_eq!(preset, target);
 }
 
-fn create_test_app_config() -> AppConfig {
-    let settings = Settings::new();
+#[test]
+fn wt_command_default() {
+    let preset = Preset::default();
+    let mut app_config = AppConfig::default();
+    app_config.presets.push(preset);
 
-    let app_config = AppConfig {
-        presets: vec![],
-        settings,
+    let target = "wt.exe powershell -NoExit -Command 'arg w1\\;'`; sp powershell -NoExit -Command 'arg w1\\;'`; nt powershell -NoExit -Command 'arg w2\\;'`; nt powershell -NoExit -Command 'arg w3\\;'";
+    assert_eq!(
+        create_wt_command("Test Preset", &mut app_config).unwrap().1,
+        target
+    );
+}
+
+#[test]
+fn wt_command_1tab_1window() {
+    let preset_info = PresetInfo::default();
+    let mut app_config = AppConfig::default();
+    let preset = Preset {
+        name: "Test Preset".to_string(),
+        tabs: 1,
+        windows: vec![1],
+        args: vec!["ls".to_string()],
+        preset_info,
     };
 
-    app_config
+    app_config.presets.push(preset);
+
+    let target = "wt.exe powershell -NoExit -Command 'ls\\;'";
+
+    assert_eq!(
+        create_wt_command("Test Preset", &mut app_config).unwrap().1,
+        target
+    );
+}
+
+#[test]
+fn wt_command_3tabs_1windows() {
+    let preset_info = PresetInfo::default();
+    let mut app_config = AppConfig::default();
+    let preset = Preset {
+        name: "Test Preset".to_string(),
+        tabs: 3,
+        windows: vec![1, 1, 1],
+        args: vec!["ls".to_string(), "pwd".to_string(), "cd ..".to_string()],
+        preset_info,
+    };
+
+    app_config.presets.push(preset);
+
+    let target = "wt.exe powershell -NoExit -Command 'ls\\;'`; nt powershell -NoExit -Command 'pwd\\;'`; nt powershell -NoExit -Command 'cd ..\\;'";
+
+    assert_eq!(
+        create_wt_command("Test Preset", &mut app_config).unwrap().1,
+        target
+    );
+}
+
+#[test]
+fn wt_command_2tabs_2windows() {
+    let preset_info = PresetInfo::default();
+    let mut app_config = AppConfig::default();
+    let preset = Preset {
+        name: "Test Preset".to_string(),
+        tabs: 2,
+        windows: vec![2, 2],
+        args: vec![
+            "ls".to_string(),
+            "pwd".to_string(),
+            "cd ..".to_string(),
+            "ls".to_string(),
+        ],
+        preset_info,
+    };
+
+    app_config.presets.push(preset);
+
+    let target = "wt.exe powershell -NoExit -Command 'ls\\;'`; sp powershell -NoExit -Command 'pwd\\;'`; nt powershell -NoExit -Command 'cd ..\\;'`; sp powershell -NoExit -Command 'ls\\;'";
+
+    assert_eq!(
+        create_wt_command("Test Preset", &mut app_config).unwrap().1,
+        target
+    );
+}
+
+#[test]
+fn wt_command_2tabs_3windows_1window() {
+    let preset_info = PresetInfo::default();
+    let mut app_config = AppConfig::default();
+    let preset = Preset {
+        name: "Test Preset".to_string(),
+        tabs: 2,
+        windows: vec![3, 1],
+        args: vec![
+            "ls".to_string(),
+            "pwd".to_string(),
+            "cd ..".to_string(),
+            "ls".to_string(),
+        ],
+        preset_info,
+    };
+
+    app_config.presets.push(preset);
+
+    let target = "wt.exe powershell -NoExit -Command 'ls\\;'`; sp -s .66 powershell -NoExit -Command 'pwd\\;' `; sp -s .5 powershell -NoExit -Command 'cd ..\\;'`; nt powershell -NoExit -Command 'ls\\;'";
+
+    assert_eq!(
+        create_wt_command("Test Preset", &mut app_config).unwrap().1,
+        target
+    );
 }

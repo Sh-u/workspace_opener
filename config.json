@@ -1,1 +1,1 @@
-{"presets":[{"name":"dudud","tabs":3,"windows":[1,2,1],"args":["ls","pwd","",""],"preset_info":{"wt_profile":"Ubuntu","init_shell":"powershell","target_shell":"zsh"}}],"settings":{"debug_mode":"on"}}
+{"presets":[{"name":"dudud","tabs":1,"windows":[3],"args":["ls","pwd","cd .."],"preset_info":{"wt_profile":"","init_shell":"powershell","target_shell":"powershell"}}],"settings":{"debug_mode":"on"}}

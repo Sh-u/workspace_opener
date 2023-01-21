@@ -1,1 +1,14 @@
-22:39:54 [WARN] wt.exe -p "Ubuntu" wsl ~ -e zsh -c 'ls\;exec zsh\;'`; nt -p "Ubuntu" wsl ~ -e zsh -c 'pwd\;exec zsh\;' `; sp -p "Ubuntu" wsl ~ -e zsh -c '\;exec zsh\;'`; nt -p "Ubuntu" wsl ~ -e zsh -c '\;exec zsh\;'
+22:50:42 [WARN] w inedx: 0, arg count 0
+22:50:45 [WARN] w inedx: 0, arg count 0
+22:50:45 [WARN] w inedx: 0, arg count 1
+22:50:45 [WARN] w inedx: 0, arg count 2
+22:50:48 [WARN] w inedx: 0, arg count 0
+22:50:48 [WARN] w inedx: 0, arg count 1
+22:50:48 [WARN] w inedx: 0, arg count 2
+22:50:50 [WARN] w inedx: 0, arg count 0
+22:50:50 [WARN] w inedx: 0, arg count 1
+22:50:50 [WARN] w inedx: 0, arg count 2
+22:51:01 [WARN] arg: powershell -NoExit -Command 'ls\;'
+22:51:01 [WARN] arg: powershell -NoExit -Command 'pwd\;'
+22:51:01 [WARN] arg: powershell -NoExit -Command 'cd ..\;'
+22:51:01 [WARN] wt.exe powershell -NoExit -Command 'ls\;'`; sp -s .66 powershell -NoExit -Command 'pwd\;' `; sp -s .5 powershell -NoExit -Command 'cd ..\;'

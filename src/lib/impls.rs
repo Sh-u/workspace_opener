@@ -297,6 +297,22 @@ impl Preset {
 
         items
     }
+
+    pub fn default() -> Preset {
+        let preset_info = PresetInfo::default();
+        Preset {
+            name: String::from("Test Preset"),
+            tabs: 3,
+            windows: vec![2, 1, 1],
+            args: vec![
+                String::from("arg w1"),
+                String::from("arg w1"),
+                String::from("arg w2"),
+                String::from("arg w3"),
+            ],
+            preset_info,
+        }
+    }
 }
 
 impl Popup {
@@ -449,6 +465,17 @@ impl AppConfig {
 
         Ok(())
     }
+
+    pub fn default() -> AppConfig {
+        let settings = Settings::default();
+
+        let app_config = AppConfig {
+            presets: vec![],
+            settings,
+        };
+
+        app_config
+    }
 }
 
 impl Settings {
@@ -466,7 +493,7 @@ impl Settings {
         Ok(())
     }
 
-    pub fn new() -> Settings {
+    pub fn default() -> Settings {
         Settings {
             debug_mode: "on".to_string()
         }

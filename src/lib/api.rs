@@ -180,7 +180,12 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                 .items
                 .get_selected_item()
                 .expect("There is no selected item when trying to run the config.");
-            run_config(selected_item.name.as_str(), &mut app_config);
+
+            let (program, arg) =
+                create_wt_command(selected_item.name.as_str(), &mut app_config).unwrap();
+
+            run_config(program, arg);
+
             break;
         }
 
@@ -347,7 +352,10 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
     }
 }
 
-fn run_config(selected_name: &str, app_config: &AppConfig) {
+pub fn create_wt_command(
+    selected_name: &str,
+    app_config: &AppConfig,
+) -> Result<(String, String), String> {
     let Some(preset) = app_config.get_preset_by_name(selected_name) else {
             error!("Cannot find the matching preset name while trying to run the config.");
             panic!();
@@ -379,7 +387,9 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
         if *target_shell == ShellType::Zsh || *target_shell == ShellType::Bash {
             temp.push_str(&format!("exec {}\\;", target_shell.as_string()));
         }
+
         *arg = format!("{} '{}'", command_runner, temp);
+        warn!("arg: {}", &arg);
     }
 
     let escape_char = match init_shell_name.as_str() {
@@ -401,7 +411,7 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
                 args.get(arg_idx.remove(0)).unwrap(),
             )),
             2 => windows.push(format!(
-                "{} {} {}; sp{} {}",
+                "{} {}{}; sp{} {}",
                 wt_profile,
                 args.get(arg_idx.remove(0)).unwrap(),
                 escape_char,
@@ -409,7 +419,7 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
                 args.get(arg_idx.remove(0)).unwrap()
             )),
             3 => windows.push(format!(
-                "{} {} {}; sp{} -s .66 {} {}; sp{} -s .5 {}",
+                "{} {}{}; sp{} -s .66 {} {}; sp{} -s .5 {}",
                 wt_profile,
                 args.get(arg_idx.remove(0)).unwrap(),
                 escape_char,
@@ -420,7 +430,7 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
                 args.get(arg_idx.remove(0)).unwrap()
             )),
             4 => windows.push(format!(
-                "{} {} {}; sp{} {} {}; sp{} {} {}; mf left {}; sp{} {}",
+                "{} {}{}; sp{} {} {}; sp{} {} {}; mf left {}; sp{} {}",
                 wt_profile,
                 args.get(arg_idx.remove(0)).unwrap(),
                 escape_char,
@@ -448,7 +458,12 @@ fn run_config(selected_name: &str, app_config: &AppConfig) {
     warn!("{}", &arg);
 
     init_shell_name.push_str(".exe");
-    let mut _process = std::process::Command::new(init_shell_name)
+
+    Ok((init_shell_name, arg))
+}
+
+fn run_config(program: String, arg: String) {
+    let mut _process = std::process::Command::new(program)
         .arg(arg)
         .spawn()
         .expect("Failed to launch the target process.");
