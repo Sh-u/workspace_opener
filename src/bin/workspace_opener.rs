@@ -1,14 +1,13 @@
-pub mod lib;
-
+extern crate workspace_opener;
 use crossterm::{
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use lib::{api::run_app, model::App};
 use log::*;
 use simplelog::{Config, WriteLogger};
 use std::{error::Error, fs::File, io};
 use tui::{backend::CrosstermBackend, Terminal};
+use workspace_opener::workspace_opener_lib::{api::run_app, model::App};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let _ = WriteLogger::init(

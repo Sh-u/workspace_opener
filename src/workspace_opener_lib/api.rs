@@ -1,5 +1,7 @@
+use super::model::ShellType;
+
 use super::model::{App, AppConfig, InputMode, Preset, PresetCreationHelper, State, WriteType};
-use crate::lib::model::ShellType;
+
 use crossterm::event::{self, Event, KeyCode};
 use log::*;
 use std::{
@@ -51,11 +53,6 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     match app.state {
         State::EditPreset | State::ChangeFieldName => {
             main_block_style = main_block_style.fg(edit_color);
-            // controls.push(Span::raw(", "));
-            // controls.push(Span::styled(
-            //     "EDIT MODE ACTIVATED",
-            //     Style::default().add_modifier(Modifier::BOLD).fg(edit_color),
-            // ));
         }
         State::ChoosePreset => {
             controls.push(Span::styled(
@@ -94,15 +91,6 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
                 .add_modifier(Modifier::BOLD)
                 .fg(Color::LightYellow),
         ));
-
-        // controls.push(Span::raw(format!(", prompts len: {}", app.prompts.len())));
-        // controls.push(Span::raw(format!(", msg len: {}", app.messages.len())));
-        // let (item, index) = app.items.get_selected_item().unwrap();
-        // controls.push(Span::raw(format!(
-        //     ", item: {:?}, index: {:?}",
-        //     item,
-        //     app.items.get_selected_item_index().unwrap()
-        // )));
     }
 
     match app.input_mode {
@@ -419,7 +407,7 @@ pub fn create_wt_command(
                 args.get(arg_idx.remove(0)).unwrap()
             )),
             3 => windows.push(format!(
-                "{} {}{}; sp{} -s .66 {} {}; sp{} -s .5 {}",
+                "{} {}{}; sp{} -s .66 {}{}; sp{} -s .5 {}",
                 wt_profile,
                 args.get(arg_idx.remove(0)).unwrap(),
                 escape_char,
@@ -430,7 +418,7 @@ pub fn create_wt_command(
                 args.get(arg_idx.remove(0)).unwrap()
             )),
             4 => windows.push(format!(
-                "{} {}{}; sp{} {} {}; sp{} {} {}; mf left {}; sp{} {}",
+                "{} {}{}; sp{} {}{}; sp{} {}{}; mf left{}; sp{} {}",
                 wt_profile,
                 args.get(arg_idx.remove(0)).unwrap(),
                 escape_char,
@@ -476,7 +464,7 @@ pub fn write_preset_to_file(
     config_path: &str,
 ) -> Result<(), ()> {
     if let WriteType::Create = write_type {
-        let new_preset = Preset::new(app_messages);
+        let new_preset = Preset::from_input(app_messages);
         app_config.presets.push(new_preset);
     }
 

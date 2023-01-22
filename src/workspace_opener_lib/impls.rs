@@ -121,7 +121,7 @@ impl StatefulList {
 }
 
 impl Preset {
-    pub fn new(input: &Vec<String>) -> Self {
+    pub fn from_input(input: &Vec<String>) -> Self {
         let name = input.get(0).unwrap().to_string();
         let tabs = input
             .get(1)
@@ -152,6 +152,10 @@ impl Preset {
             args,
             preset_info
         }
+    }
+
+    pub fn new(name: String, tabs:u8,windows:Vec<u8>,args:Vec<String>,preset_info: PresetInfo) -> Preset {
+        Preset { name , tabs, windows, args, preset_info }
     }
 
     pub fn change_field_value(&mut self, preset_value: PresetValue) -> Result<(), String> {
@@ -313,6 +317,10 @@ impl Preset {
             preset_info,
         }
     }
+
+    pub fn get_preset_info(&self) -> PresetInfo {
+        self.preset_info.clone()
+    }
 }
 
 impl Popup {
@@ -414,7 +422,7 @@ impl App {
                     }
                     _ => {}
                 }
-                self.items.list_state.select(Some(0));
+                
             }
             State::ChangeFieldName => {
                 self.input_mode = InputMode::Edit;
@@ -476,13 +484,26 @@ impl AppConfig {
 
         app_config
     }
+
+    pub fn add_presets(&mut self, presets: Vec<Preset>) {
+        for preset in presets {
+            self.presets.push(preset);
+        }
+    }
+
+    pub fn new(presets: Vec<Preset>, settings: Settings) -> AppConfig {
+        AppConfig {
+            presets,
+            settings
+        }
+    }
 }
 
 impl Settings {
     pub fn change_name(&mut self, index: usize, new_name: &str) -> Result<(), String> {
         match index {
             0 => {
-                self.debug_mode = new_name.to_string();
+                self.debug_mode = !self.debug_mode;
             }
             _ => {
                 return Err(String::from(
@@ -495,7 +516,7 @@ impl Settings {
 
     pub fn default() -> Settings {
         Settings {
-            debug_mode: "on".to_string()
+            debug_mode: false
         }
     }
 }
@@ -603,6 +624,14 @@ impl PresetInfo {
             wt_profile: String::new(),
             init_shell: ShellType::WindowsPowershell,
             target_shell: ShellType::WindowsPowershell,
+        }
+    }
+
+    pub fn new(wt_profile: String, init_shell: ShellType, target_shell: ShellType) -> PresetInfo {
+        PresetInfo {
+            wt_profile,
+            init_shell,
+            target_shell,
         }
     }
 }

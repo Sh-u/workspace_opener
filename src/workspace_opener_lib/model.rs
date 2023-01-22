@@ -80,7 +80,7 @@ pub struct PresetInfo {
 }
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct Settings {
-    pub(super) debug_mode: String,
+    pub(super) debug_mode: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

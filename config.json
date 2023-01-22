@@ -1,1 +1,4 @@
-{"presets":[{"name":"dudud","tabs":1,"windows":[3],"args":["ls","pwd","cd .."],"preset_info":{"wt_profile":"","init_shell":"powershell","target_shell":"powershell"}}],"settings":{"debug_mode":"on"}}
+{
+  "presets": [],
+  "settings": { "debug_mode": false }
+}
