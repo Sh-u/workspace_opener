@@ -1,7 +1,5 @@
 use super::model::ShellType;
-
 use super::model::{App, AppConfig, InputMode, Preset, PresetCreationHelper, State, WriteType};
-
 use crossterm::event::{self, Event, KeyCode};
 use log::*;
 use std::{
@@ -308,6 +306,7 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                             app.current_preset = Some(pr.clone());
                         } else {
                             let Some(index) = app.items.get_selected_item_index() else {continue;};
+
                             if let Err(err) = app_config.settings.change_name(index, &app.input) {
                                 error!("{}", err);
                                 continue;

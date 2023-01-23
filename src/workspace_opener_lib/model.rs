@@ -1,6 +1,5 @@
-use std::{any::Any, collections::VecDeque};
-
 use serde::{Deserialize, Serialize};
+use std::{any::Any, collections::VecDeque};
 use tui::{style::Color, widgets::ListState};
 
 #[derive(Debug, Copy, Clone, PartialEq)]

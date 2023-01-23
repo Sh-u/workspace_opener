@@ -27,9 +27,9 @@ impl State {
             State::Settings => Some(vec![
                 Item::new(
                     format!(
-                        "Debug mode: on",
+                        "Debug mode: {}", app_config.unwrap().settings.debug_mode
                     ),
-                    State::Settings,
+                    State::ChangeFieldName,
                     None,
                 )
             ]),
@@ -355,7 +355,7 @@ impl App {
             messages: Vec::new(),
             popup: Popup::default(),
             current_preset: None,
-            debug_mode: true,
+            debug_mode: false,
         }
     }
     pub fn get_state(&self) -> State {
@@ -377,7 +377,7 @@ impl App {
             _ => State::Start,
         };
         self.state = new_state;
-
+    
         self.input.clear();
         self.messages.clear();
 
@@ -422,6 +422,7 @@ impl App {
                     }
                     _ => {}
                 }
+            
                 
             }
             State::ChangeFieldName => {
@@ -429,6 +430,7 @@ impl App {
                 let index = item_name.find(":").unwrap();
                 let new_input = item_name[index + 1..].trim();
                 self.input = new_input.to_string();
+
             }
             State::RunConfig => {}
             _ => {
@@ -442,6 +444,9 @@ impl App {
                     self.items.items.push(item);
                 }
                 self.items.list_state.select(Some(0));
+                if let Some(config) = app_config {
+                    self.debug_mode = config.settings.debug_mode;
+                }
             }
         };
         
@@ -503,7 +508,14 @@ impl Settings {
     pub fn change_name(&mut self, index: usize, new_name: &str) -> Result<(), String> {
         match index {
             0 => {
-                self.debug_mode = !self.debug_mode;
+                match new_name {
+                    "true" => self.debug_mode = true,
+                    "false" => self.debug_mode = false,
+                    _ => return Err(String::from(
+                        "Cannot change the setting name: EXPECTED 'true' or 'false'.",
+                    ))
+                }
+
             }
             _ => {
                 return Err(String::from(
@@ -634,4 +646,36 @@ impl PresetInfo {
             target_shell,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn presetvalue_update_success() {
+       let mut pv =  PresetValue::Args(0, "Not".to_string());
+       let target = PresetValue::Args(0, "Changed".to_string());
+       pv.update_value("Changed").unwrap();
+
+       assert_eq!(pv, target);
+
+    }
+
+    #[test]
+    #[should_panic]
+    fn presetvalue_update_fail_windows() {
+       let mut pv =  PresetValue::Windows(0, 4);
+       pv.update_value("5").unwrap();
+        
+    }
+
+    #[test]
+    #[should_panic]
+    fn presetvalue_update_fail_tabs() {
+       let mut pv =  PresetValue::Tabs(10);
+       pv.update_value("11").unwrap();
+        
+    }
+
+
 }

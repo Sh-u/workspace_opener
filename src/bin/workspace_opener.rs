@@ -30,7 +30,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     run_app(&mut terminal, &mut app);
 
     disable_raw_mode()?;
+
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+
     terminal.show_cursor()?;
 
     Ok(())

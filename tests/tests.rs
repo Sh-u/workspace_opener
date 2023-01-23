@@ -6,7 +6,9 @@ use workspace_opener::workspace_opener_lib::{
         State, WriteType,
     },
 };
+
 extern crate workspace_opener;
+
 #[test]
 fn preset_creation_basic() {
     let preset_info = PresetInfo::default();
@@ -25,6 +27,7 @@ fn preset_creation_basic() {
     );
 
     let mut input: Vec<String> = vec![];
+
     input.push(String::from("Test Preset"));
     input.push(String::from("3"));
     input.push(String::from("2"));
@@ -39,6 +42,7 @@ fn preset_creation_basic() {
 
     assert_eq!(target, from_input);
 }
+
 #[test]
 fn preset_creation_large() {
     let mut args = vec![
@@ -53,6 +57,7 @@ fn preset_creation_large() {
     }
 
     let preset_info = PresetInfo::default();
+
     let target = Preset::new(
         String::from("Test Preset"),
         4,
@@ -62,6 +67,7 @@ fn preset_creation_large() {
     );
 
     let mut input: Vec<String> = vec![];
+
     input.push(String::from("Test Preset"));
     input.push(String::from("4"));
     input.push(String::from("2"));
@@ -113,6 +119,7 @@ fn preset_deletion() {
 
     assert_eq!(target, app_config);
 }
+
 #[test]
 fn test_write_to_file_and_create() {
     let mut app_config = AppConfig::default();
@@ -130,7 +137,9 @@ fn test_write_to_file_and_create() {
     ];
 
     let config_path = "test.json";
+
     let test_string =  "{\"presets\":[{\"name\":\"Test Preset\",\"tabs\":3,\"windows\":[2,1,1],\"args\":[\"arg w1\",\"arg w1\",\"arg w2\",\"arg w3\"],\"preset_info\":{\"wt_profile\":\"\",\"init_shell\":\"powershell\",\"target_shell\":\"powershell\"}}],\"settings\":{\"debug_mode\":false}}".to_string();
+
     write_preset_to_file(
         &mut app_config,
         &app_messages,
@@ -140,12 +149,16 @@ fn test_write_to_file_and_create() {
     .expect("Failed to write file");
 
     let mut file = fs::File::open(config_path).expect("Failed to open file");
+
     let mut file_contents = String::new();
+
     file.read_to_string(&mut file_contents)
         .expect("Failed to read file");
 
     let assertion = file_contents == test_string.to_string();
+
     fs::remove_file(config_path).expect("Failed to delete file");
+
     if !assertion {
         panic!("");
     }
@@ -172,24 +185,32 @@ fn test_write_to_file_and_delete() {
     app_config.add_presets(vec![preset]);
 
     let config_path = "test2.json";
+
     app_config
         .delete_preset_by_name("Test Preset")
         .expect("Failed to delete preset");
+
     let test_string = "{\"presets\":[],\"settings\":{\"debug_mode\":false}}".to_string();
+
     write_preset_to_file(&mut app_config, &app_messages, WriteType::Edit, config_path)
         .expect("Failed to write file");
 
     let mut file = fs::File::open(config_path).expect("Failed to open file");
+
     let mut file_contents = String::new();
+
     file.read_to_string(&mut file_contents)
         .expect("Failed to read file");
 
     let assertion = file_contents == test_string.to_string();
+
     fs::remove_file(config_path).expect("Failed to delete file");
+
     if !assertion {
         panic!("");
     }
 }
+
 #[test]
 fn test_into_items() {
     let preset_info = PresetInfo::default();
@@ -208,6 +229,7 @@ fn test_into_items() {
     );
 
     let items = preset.into_items();
+
     let mut target = vec![];
 
     let name = Item::new(
@@ -223,6 +245,7 @@ fn test_into_items() {
         State::ChangeFieldName,
         Some(PresetValue::Tabs(3)),
     );
+
     target.push(tabs);
 
     let window = Item::new(
@@ -254,6 +277,7 @@ fn test_into_items() {
         State::ChangeFieldName,
         Some(PresetValue::Args(0, "arg w1".to_string())),
     );
+
     target.push(arg);
 
     let arg = Item::new(
@@ -261,6 +285,7 @@ fn test_into_items() {
         State::ChangeFieldName,
         Some(PresetValue::Args(1, "arg w1".to_string())),
     );
+
     target.push(arg);
 
     let arg = Item::new(
@@ -268,6 +293,7 @@ fn test_into_items() {
         State::ChangeFieldName,
         Some(PresetValue::Args(2, "arg w2".to_string())),
     );
+
     target.push(arg);
 
     let arg = Item::new(
@@ -275,6 +301,7 @@ fn test_into_items() {
         State::ChangeFieldName,
         Some(PresetValue::Args(3, "arg w3".to_string())),
     );
+
     target.push(arg);
 
     let wt_profile = Item::new(
@@ -284,6 +311,7 @@ fn test_into_items() {
             "".to_string(),
         ))),
     );
+
     target.push(wt_profile);
 
     let init_shell = Item::new(
@@ -296,6 +324,7 @@ fn test_into_items() {
             ShellType::WindowsPowershell,
         ))),
     );
+
     target.push(init_shell);
 
     let target_shell = Item::new(
@@ -308,6 +337,7 @@ fn test_into_items() {
             ShellType::WindowsPowershell,
         ))),
     );
+
     target.push(target_shell);
 
     for (index, item) in items.iter().enumerate() {
@@ -370,6 +400,7 @@ fn test_preset_change_field_value() {
     preset
         .change_field_value(PresetValue::Args(4, "arg w3".to_string()))
         .expect("Failed changing preset's args");
+
     preset
         .change_field_value(PresetValue::Args(5, "arg w3".to_string()))
         .expect("Failed changing preset's args");
@@ -442,6 +473,7 @@ fn test_preset_change_field_value() {
         ShellType::WindowsPowershell,
         ShellType::Zsh,
     );
+
     let target = Preset::new(
         String::from("Preset Changed"),
         2,
@@ -456,15 +488,19 @@ fn test_preset_change_field_value() {
 #[test]
 fn wt_command_default() {
     let preset = Preset::default();
+
     let mut app_config = AppConfig::default();
+
     app_config.add_presets(vec![preset]);
 
     let target = "wt.exe powershell -NoExit -Command 'arg w1\\;'`; sp powershell -NoExit -Command 'arg w1\\;'`; nt powershell -NoExit -Command 'arg w2\\;'`; nt powershell -NoExit -Command 'arg w3\\;'";
+
     assert_eq!(
         create_wt_command("Test Preset", &mut app_config).unwrap().1,
         target
     );
 }
+
 #[test]
 fn wt_command_cmd() {
     let preset_info = PresetInfo::new(String::new(), ShellType::Cmd, ShellType::Cmd);
@@ -480,7 +516,9 @@ fn wt_command_cmd() {
     );
 
     app_config.add_presets(vec![preset]);
+
     let target = "wt.exe cmd /k 'ls\\;'`; nt cmd /k 'ls\\;'; sp cmd /k 'ls\\;'";
+
     assert_eq!(
         create_wt_command("Test Preset", &mut app_config).unwrap().1,
         target
@@ -506,7 +544,9 @@ fn wt_command_ubuntu_bash() {
     );
 
     app_config.add_presets(vec![preset]);
+
     let target = "wt.exe -p \"Ubuntu\" wsl ~ -e bash -c 'ls\\;exec bash\\;'`; nt -p \"Ubuntu\" wsl ~ -e bash -c 'ls\\;exec bash\\;'`; sp -p \"Ubuntu\" wsl ~ -e bash -c 'ls\\;exec bash\\;'";
+
     assert_eq!(
         create_wt_command("Test Preset", &mut app_config).unwrap().1,
         target
@@ -516,6 +556,7 @@ fn wt_command_ubuntu_bash() {
 #[test]
 fn wt_command_1tab_1window() {
     let preset_info = PresetInfo::default();
+
     let mut app_config = AppConfig::default();
 
     let preset = Preset::new(
@@ -539,6 +580,7 @@ fn wt_command_1tab_1window() {
 #[test]
 fn wt_command_3tabs_1windows() {
     let preset_info = PresetInfo::default();
+
     let mut app_config = AppConfig::default();
 
     let preset = Preset::new(
@@ -562,6 +604,7 @@ fn wt_command_3tabs_1windows() {
 #[test]
 fn wt_command_2tabs_2windows() {
     let preset_info = PresetInfo::default();
+
     let mut app_config = AppConfig::default();
 
     let preset = Preset::new(
@@ -590,6 +633,7 @@ fn wt_command_2tabs_2windows() {
 #[test]
 fn wt_command_2tabs_3windows_1window() {
     let preset_info = PresetInfo::default();
+
     let mut app_config = AppConfig::default();
 
     let preset = Preset::new(
@@ -618,6 +662,7 @@ fn wt_command_2tabs_3windows_1window() {
 #[test]
 fn wt_command_1tabs_4windows() {
     let preset_info = PresetInfo::default();
+
     let mut app_config = AppConfig::default();
 
     let preset = Preset::new(

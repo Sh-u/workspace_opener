@@ -1,4 +1,1 @@
-{
-  "presets": [],
-  "settings": { "debug_mode": false }
-}
+{"presets":[{"name":"x","tabs":1,"windows":[1],"args":["ls"],"preset_info":{"wt_profile":"","init_shell":"powershell","target_shell":"powershell"}}],"settings":{"debug_mode":true}}
