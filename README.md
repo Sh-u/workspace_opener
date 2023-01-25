@@ -29,7 +29,7 @@ Visit the [Releases page](https://github.com/Sh-u/workspace_opener/releases) and
   e.g 4 windows
   ![wt_windows](assets/wt_windows.png)
   * Args (which commands to run upon opening)
-  e.g args for windows #1 `cd Rust, ls` (separated by commas)
+  e.g args for windows #1 ``ls, cd Rust` Projects, pwd`` (separated by commas)
 
 - Edit your preset profile by selecting `Choose Preset` option then pressing `E` on target preset.
   * Wt profile (name of windows terminal profile you want to run. Leave empty if none.)
