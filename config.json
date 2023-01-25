@@ -1,6 +1,6 @@
 {
   "presets": [],
   "settings": {
-    "debug_mode": true
+    "debug_mode": false
   }
 }

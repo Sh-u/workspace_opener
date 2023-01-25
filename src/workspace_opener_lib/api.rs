@@ -245,6 +245,9 @@ pub fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
                     KeyCode::Down => app.items.next(),
                     KeyCode::Up => app.items.previous(),
                     KeyCode::Enter => {
+                        if app.popup.active {
+                            app.popup.deactivate_popup();
+                        }
                         let Some(item) = app.items.get_selected_item() else {continue;};
 
                         app.handle_state_change(
@@ -376,7 +379,6 @@ pub fn create_wt_command(
         }
 
         *arg = format!("{} '{}'", command_runner, temp);
-        warn!("arg: {}", &arg);
     }
 
     let escape_char = match init_shell_name.as_str() {

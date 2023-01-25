@@ -2,7 +2,7 @@ use super::model::{
     App, AppConfig, InputMode, Item, Popup, Preset, PresetCreationHelper, PresetValue, PresetInfo,
     State, StatefulList, ShellType, PresetInfoValue, Settings,
 };
-use log::{error, warn};
+use log::{error};
 use std::{collections::VecDeque, fmt::Display};
 use tui::{style::Color, widgets::ListState};
 
@@ -272,7 +272,6 @@ impl Preset {
                     arg_count = 0;
                 }
             }
-            warn!("w inedx: {}, arg count {}", window_index, arg_count);
             let arg = Item::new(
                 format!(
                     "Tab (#{}), window (#{}), Arg: {}",
