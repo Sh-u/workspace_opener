@@ -4,7 +4,7 @@ Workspace Opener is an easy to use TUI application for creating and running Wind
 
 ## Download
 
-Visit the [Releases page](https://github.com/Sh-u/workspace_opener/releases) and navigate to the "Assets" dropdown under the latest release, then download the zip file titled `workspace_opener.zip` and choose the latest version.
+Visit the [Releases page](https://github.com/Sh-u/workspace_opener/releases) and navigate to the "Assets" dropdown under the latest release, then download the zip file titled `workspace_opener.rar` and choose the latest version.
 **DO NOT** download by clicking the green "Code"/"Download" file on the home page of this repository as that will only download the source code, which isn't what you want.
 
 ## Installation
@@ -29,10 +29,9 @@ Visit the [Releases page](https://github.com/Sh-u/workspace_opener/releases) and
   e.g 4 windows
   ![wt_windows](assets/wt_windows.png)
   * Args (which commands to run upon opening)
-  e.g args for windows #1 `cd Rust, ls` (separated by commas)
+  e.g args for windows #1 ``ls, cd Rust` Projects, pwd`` (separated by commas)
 
-- Edit your preset profile/shell
-  * Select `Choose Preset` option then press `E` on target preset.
+- Edit your preset profile by selecting `Choose Preset` option then pressing `E` on target preset.
   * Wt profile (name of windows terminal profile you want to run. Leave empty if none.)
   * Init shell (a shell from which the commands will be run. Recommended powershell.)
   * Target shell (a shell that will be opened in which window. It's the actual shell that you want to work with)
@@ -40,7 +39,7 @@ Visit the [Releases page](https://github.com/Sh-u/workspace_opener/releases) and
 - Run the config by pressing `Enter` on selected preset name
   
 - Warnings
-  * Application may not work correctly if you do not open as an admin.
+  * Application may not work correctly if you do not open it as an admin.
   * Do not change the config in any other way than through the app directly.
 
 
