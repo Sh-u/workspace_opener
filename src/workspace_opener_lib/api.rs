@@ -366,8 +366,8 @@ pub fn create_wt_command(
         ShellType::WindowsPowershell => "powershell -NoExit -Command",
         ShellType::Powershell => "pwsh -NoExit -Command",
         ShellType::Cmd => "cmd /k",
-        ShellType::Bash => "wsl ~ -e bash -c",
-        ShellType::Zsh => "wsl ~ -e zsh -c",
+        ShellType::Bash => "wsl ~ -e bash -i -c",
+        ShellType::Zsh => "wsl ~ -e zsh -i -c",
     };
 
     let mut args = preset.args.clone();
