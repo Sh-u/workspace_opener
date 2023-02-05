@@ -329,7 +329,7 @@ fn test_into_items() {
 
     let target_shell = Item::new(
         format!(
-            "Target shell (powershell/pwsh/cmd/bash/zsh): {}",
+            "Target shell (powershell/pwsh/cmd/bash/zsh/fish): {}",
             "powershell".to_string()
         ),
         State::ChangeFieldName,
@@ -545,7 +545,7 @@ fn wt_command_ubuntu_bash() {
 
     app_config.add_presets(vec![preset]);
 
-    let target = "wt.exe -p \"Ubuntu\" wsl ~ -e bash -c 'ls\\;exec bash\\;'`; nt -p \"Ubuntu\" wsl ~ -e bash -c 'ls\\;exec bash\\;'`; sp -p \"Ubuntu\" wsl ~ -e bash -c 'ls\\;exec bash\\;'";
+    let target = "wt.exe -p \"Ubuntu\" wsl ~ -e bash -i -c 'ls\\;exec bash\\;'`; nt -p \"Ubuntu\" wsl ~ -e bash -i -c 'ls\\;exec bash\\;'`; sp -p \"Ubuntu\" wsl ~ -e bash -i -c 'ls\\;exec bash\\;'";
 
     assert_eq!(
         create_wt_command("Test Preset", &mut app_config).unwrap().1,

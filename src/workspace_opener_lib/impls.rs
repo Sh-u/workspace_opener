@@ -294,7 +294,7 @@ impl Preset {
         Some(PresetValue::PresetInfo(PresetInfoValue::InitShell(self.preset_info.init_shell.clone()))));
         items.push(init_shell);
 
-        let target_shell = Item::new(format!("Target shell (powershell/pwsh/cmd/bash/zsh): {}",self.preset_info.target_shell.as_string()),State::ChangeFieldName,
+        let target_shell = Item::new(format!("Target shell (powershell/pwsh/cmd/bash/zsh/fish): {}",self.preset_info.target_shell.as_string()),State::ChangeFieldName,
         Some(PresetValue::PresetInfo(PresetInfoValue::TargetShell(self.preset_info.target_shell.clone()))));
         items.push(target_shell);
 
@@ -612,6 +612,7 @@ impl ShellType {
             "cmd" => Ok(ShellType::Cmd), 
             "bash" => Ok(ShellType::Bash),
             "zsh" => Ok(ShellType::Zsh),
+            "fish" => Ok(ShellType::Fish),
             _ => return Err("Incorrect shell name.".to_string())
         }
 
