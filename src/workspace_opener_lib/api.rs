@@ -375,8 +375,11 @@ pub fn create_wt_command(
 
     for arg in args.iter_mut() {
         let mut temp: String = arg.split(",").map(|s| format!("{}\\;", s)).collect();
-        if *target_shell == ShellType::Zsh || *target_shell == ShellType::Bash {
-            temp.push_str(&format!("exec {}\\;", target_shell.as_string()));
+        match *target_shell {
+            ShellType::Zsh | ShellType::Bash | ShellType::Fish => {
+                temp.push_str(&format!("exec {}\\;", target_shell.as_string()));
+            }
+            _ => {}
         }
 
         *arg = format!("{} '{}'", command_runner, temp);
