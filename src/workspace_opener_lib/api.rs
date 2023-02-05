@@ -366,15 +366,16 @@ pub fn create_wt_command(
         ShellType::WindowsPowershell => "powershell -NoExit -Command",
         ShellType::Powershell => "pwsh -NoExit -Command",
         ShellType::Cmd => "cmd /k",
-        ShellType::Bash => "wsl ~ -e bash -i -c",
-        ShellType::Zsh => "wsl ~ -e zsh -i -c",
-        ShellType::Fish => "wsl ~ -e fish -i -c",
+        ShellType::Bash => "wsl ~ -e bash -l -i -c",
+        ShellType::Zsh => "wsl ~ -e zsh -l -i -c",
+        ShellType::Fish => "wsl ~ -e fish -l -i -c",
     };
 
     let mut args = preset.args.clone();
 
     for arg in args.iter_mut() {
         let mut temp: String = arg.split(",").map(|s| format!("{}\\;", s)).collect();
+        
         match *target_shell {
             ShellType::Zsh | ShellType::Bash | ShellType::Fish => {
                 temp.push_str(&format!("exec {}\\;", target_shell.as_string()));
