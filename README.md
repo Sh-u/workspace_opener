@@ -5,7 +5,7 @@ Workspace Opener is an easy to use TUI application for creating and running Wind
 ## Download
 
 Visit the [Releases page](https://github.com/Sh-u/workspace_opener/releases) and navigate to the "Assets" dropdown under the latest release, then download the zip file titled `workspace_opener.rar` and choose the latest version.
-**DO NOT** download by clicking the green "Code"/"Download" file on the home page of this repository as that will only download the source code, which isn't what you want.
+**DO NOT** download by clicking the green "Code"/"Download" file on the home page of this repository, as that will only download the source code, which isn't what you want.
 
 ## Installation
 
@@ -32,14 +32,25 @@ Visit the [Releases page](https://github.com/Sh-u/workspace_opener/releases) and
   e.g args for windows #1 ``ls, cd Rust` Projects, pwd`` (separated by commas)
 
 - Edit your preset profile by selecting `Choose Preset` option then pressing `E` on target preset.
-  * Wt profile (name of windows terminal profile you want to run. Leave empty if none.)
+  * Wt profile (name of windows terminal profile you want to run. Leave it empty if none.)
   * Init shell (a shell from which the commands will be run. Recommended powershell.)
   * Target shell (a shell that will be opened in which window. It's the actual shell that you want to work with)
 
 - Run the config by pressing `Enter` on selected preset name
   
-- Warnings
-  * Application may not work correctly if you do not open it as an admin.
+## Warnings
+  * The Application may not work correctly if you do not open it as an admin.
   * Do not change the config in any other way than through the app directly.
+
+## Common Issues
+  * Password prompts in WSL
+    - The dirty way is to pipe: ``echo \"password\" | sudo -S <command>``
+    - Cleaner way is to run wsl: 
+      - enter `sudo visudo`
+      - add *NOPASSWD* for specified services like `%sudo ALL=(ALL) NOPASSWD: /usr/sbin/service redis-server start,/usr/sbin/service postgresql start`
+  * Command not found
+    - Make sure the path is correct by running `echo $PATH` 
+    - Provide an explicit path: instead of `npm run` pass `/home/username/bin/npm run` etc.
+    - If above does not fix, make sure to install it in `/usr/bin` 
 
 
