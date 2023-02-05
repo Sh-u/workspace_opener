@@ -48,6 +48,8 @@ pub enum ShellType {
     Bash,
     #[serde(rename = "zsh")]
     Zsh,
+    #[serde(rename = "fish")]
+    Fish,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -368,6 +368,7 @@ pub fn create_wt_command(
         ShellType::Cmd => "cmd /k",
         ShellType::Bash => "wsl ~ -e bash -i -c",
         ShellType::Zsh => "wsl ~ -e zsh -i -c",
+        ShellType::Fish => "wsl ~ -e fish -i -c",
     };
 
     let mut args = preset.args.clone();

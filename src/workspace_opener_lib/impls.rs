@@ -3,7 +3,7 @@ use super::model::{
     State, StatefulList, ShellType, PresetInfoValue, Settings,
 };
 use log::{error};
-use std::{collections::VecDeque, fmt::Display};
+use std::{collections::VecDeque, fmt::{Display, write}};
 use tui::{style::Color, widgets::ListState};
 
 impl Item {
@@ -601,6 +601,7 @@ impl ShellType {
             ShellType::Cmd => "cmd".to_string(),
             ShellType::Bash => "bash".to_string(),
             ShellType::Zsh => "zsh".to_string(),
+            ShellType::Fish => "fish".to_string()
         }
     }
 
@@ -625,6 +626,7 @@ impl Display for ShellType {
             ShellType::Cmd => write!(f, "cmd"),
             ShellType::Bash => write!(f, "bash"),
             ShellType::Zsh => write!(f, "zsh"),
+            ShellType::Fish => write!(f, "fish")
         }
     }
 }
