@@ -1,6 +1,6 @@
-use serde::{Deserialize, Serialize};
-use std::{any::Any, collections::VecDeque};
-use tui::{style::Color, widgets::ListState};
+use serde::{ Deserialize, Serialize };
+use std::{ any::Any, collections::VecDeque };
+use tui::{ style::Color, widgets::ListState };
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum State {
@@ -99,6 +99,8 @@ pub struct App {
     pub(super) items: StatefulList,
     pub(super) prompts: Vec<String>,
     pub(super) input: String,
+    pub(super) selected_input: Vec<usize>,
+    pub(super) cursor_idx: usize,
     pub(super) input_mode: InputMode,
     pub(super) messages: Vec<String>,
     pub(super) popup: Popup,
