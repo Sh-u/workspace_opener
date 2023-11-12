@@ -462,19 +462,18 @@ impl App {
         let selected_input = &mut self.selected_input;
 
         if !selected_input.is_empty() {
-            let mut chars: Vec<char> = input.chars().collect();
-            for &index in selected_input.iter().rev() {
-                chars.remove(index);
-            }
-            chars.push(ch);
-            *input = chars.into_iter().collect();
+            let first = *selected_input.first().unwrap();
+            let last = *selected_input.last().unwrap();
 
+            input.drain(first..last + 1);
+            input.insert(first, ch);
             selected_input.clear();
+            let new_idx = std::cmp::min(first + 1, input.len());
+            self.cursor_idx = new_idx;
         } else {
             input.insert(cursor_idx, ch);
+            self.cursor_idx = cursor_idx + 1;
         }
-
-        self.cursor_idx = cursor_idx + 1;
     }
 
     pub fn delete_characters(&mut self) {
@@ -575,10 +574,17 @@ impl App {
                     let cursor_idx = self.cursor_idx;
                     let input = &mut self.input;
 
-                    input.insert_str(cursor_idx, &cli_contents);
+                    if !self.selected_input.is_empty() {
+                        let first = *self.selected_input.first().unwrap();
+                        let last = *self.selected_input.last().unwrap();
+
+                        input.drain(first..last + 1);
+                        self.selected_input.clear();
+                    } else {
+                        input.insert_str(cursor_idx, &cli_contents);
+                    }
 
                     let new_index = cursor_idx + 1 + cli_contents.len();
-
                     self.cursor_idx = new_index;
                 }
             }
@@ -600,6 +606,7 @@ impl App {
 
     pub fn handle_shift_key_action(&mut self, key_code: KeyCode) {
         match key_code {
+            KeyCode::Char(ch) => self.insert_char(ch),
             KeyCode::Left => {
                 let cursor_idx = self.cursor_idx;
 
@@ -1211,13 +1218,6 @@ impl PresetValue {
                     }
                     PresetInfoValue::TargetShell(target_shell) => {
                         *target_shell = ShellType::from_str(new_val)?;
-                    }
-                    _ => {
-                        return Err(
-                            String::from(
-                                "PresetValue update_value error parsing PresetInfo: INDEX OUT OF BOUNDS."
-                            )
-                        );
                     }
                 }
         }
